@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="../jquery-3.2.1.js"></script>
+<script src="../molecule.js"></script>
+</head>
+<body>
+	<template>
+		<div molecule-def="A">
+			from <span molecule-placeholder="p1" required></span> to <span molecule-placeholder="p2">New York</span>, exhaust 80 days
+		</div>
+		
+	</template>
+	
+	<div molecule=A>
+		<span molecule-replace="p1">Tokyo</span>
+	</div>
+	
+	<div molecule=A>
+		<span molecule-replace="p1">Peking</span>
+		<span molecule-replace="p2">Konton</span>
+	</div>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="../jquery-3.2.1.js"></script>
+<script src="../molecule.js"></script>
+</head>
+<body>
+	<template>
+		<table molecule-def="a" border="1">
+			<caption molecule-socket="caption"></caption>
+			<thead molecule-socket="th">
+			</thead>
+		</table>
+	</template>
+	
+	<table molecule=a>
+		<template molecule-plug="caption">Table 1</template>
+		<template molecule-plug="th">
+			<td>name</td>
+			<td>email</td>
+			<td>address</td>
+		</template>
+	</table>
+
+	friends:
+	<table molecule=a>
+		<template molecule-plug="th">
+			<td>name</td>
+			<td>email</td>
+			<td>address</td>
+		</template>
+	</table>
+	
+</body>
+</html>

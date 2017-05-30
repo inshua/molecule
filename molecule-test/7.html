@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="../jquery-3.2.1.js"></script>
+<script src="../molecule.js"></script>
+</head>
+<body>
+	<template>
+		<div molecule-def="A">
+			A:<molecule-placeholder />
+            <script constructor>
+                console.log('create molecule a')
+            </script>
+		</div>
+		
+		<div molecule-def=B>
+			B:<div molecule=A><molecule-placeholder /></div>
+            <script constructor>
+                console.log('create molecule b')
+            </script>
+		</div>
+		
+		<div molecule-def=C>
+			C:<div molecule=B><molecule-placeholder /></div>
+            <script constructor>
+                console.log('create molecule c')
+            </script>
+		</div>
+		
+		<div molecule-def=D>
+			D:<div molecule=C><molecule-placeholder /></div>
+            <script constructor>
+                console.log('create molecule d')
+            </script>
+		</div>
+		
+		<div molecule-def=E>
+			E:<div molecule=D><molecule-placeholder /></div>
+            <script constructor>
+                console.log('create molecule e')
+            </script>
+		</div>
+	</template>
+	
+	<div molecule=E>
+		Hello World
+        <script>
+            Molecule.ready(document.currentScript.parentElement, function(){
+                console.log('molecule loaded')
+            })
+        </script>
+	</div>
+	
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="../jquery-3.2.1.js"></script>
+<script src="../molecule.js"></script>
+</head>
+<body>
+	<template>
+		<div molecule-def="A">
+			A said <molecule-placeholder />
+		</div>
+		
+		<div molecule-def=B>
+			"<div molecule=A style="display:inline;"><molecule-placeholder /></div>", B said
+		</div>
+
+	</template>
+	
+	<div molecule=A>
+		Hello World
+	</div>
+	
+	<div molecule=B>
+		Hello World
+	</div>
+	
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="../jquery-3.2.1.js"></script>
+<script src="../molecule.js"></script>
+<script>
+		Molecule.loadHtml('green-block.html');
+		// Molecule.debug = true;
+</script>
+</head>
+<body>
+	<div molecule="greenBlock">
+	</div>
+	
+	<div molecule="greenBlock">
+		simple text
+	</div>	
+
+	<div molecule="greenBlock">
+		Molecule.ready(element, function(){})
+		<script>
+			Molecule.ready(document.currentScript.parentElement, function(){
+				console.log('after init instance complete, set bk color to yellow');
+				this.molculeInstance.setBackColor('blue');
+			});
+		</script>
+	</div>
+
+	<template>
+		<div molecule-def="yellowBlock" molecule="greenBlock">
+			<script constructor extends="greenBlock">
+				this.setBackColor('yellow');
+			</script>
+		</div>
+	</template>
+	
+	<div molecule="yellowBlock" id="aa">
+		yellow intance, derived from green
+	</div>
+	
+
+	<template>
+		<div molecule-def="redBlock" molecule="yellowBlock">
+			<script constructor extends="yellowBlock">
+				this.setBackColor('red');
+			</script>
+		</div>
+	</template>
+
+	<div molecule="redBlock">
+		red intance, derived from yellow
+	</div>
+	
+</body>
+</html>

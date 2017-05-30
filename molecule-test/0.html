@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="../jquery-3.2.1.js"></script>
+<script src="../molecule.js"></script>
+
+</head>
+<body>
+	<template>
+		<!-- 
+			molecule-def 应放在 template 中，template 中的脚本不会执行。
+			注明为 construtor 的脚本块是 molecule 构造函数，其中的变量、函数都会放在一个生成的闭包里，不会溢出
+			如果需要溢出，可另外放置 <script></script> 即没有 construtor 说明的普通脚本块。
+		 -->
+		<div molecule-def="block" style="background-color: red; width:100px; height: 100px; margin: 4px;">
+			<script constructor>
+				this.setBackColor = function(color){
+					this.el.style.backgroundColor = color;
+				}
+			</script>
+			<script>
+				console.log('this function is out of box');
+				function globalFun(){
+					console.log('global function');
+				}
+			</script>
+		</div>
+
+		<div molecule-def="yellowBlock" class="yellow-block">
+			Embed Style
+			<style>
+				/* 可以嵌入 style */
+				.yellow-block{
+					background-color: yellow; width:100px; height: 100px; margin: 4px;
+				}
+			</style>
+			<script construtor>
+				this.setBackColor = function(color){
+					this.el.style.backgroundColor = color;
+				}
+			</script>
+		</div>
+	</template>
+	
+	<div molecule="block" id="block1">
+		
+	</div>
+	
+	<div molecule="block" id="block2">
+		BLOCK2
+	</div>
+
+	<div molecule="yellowBlock">
+
+	</div>
+	
+	<div molecule="block" style="background-color: lime; width:200px; height: 200px; margin: 4px;">
+		OVERRIDE
+	</div>
+
+	<div molecule="block">
+		<div molecule="block" style="width:50%; height:50%; background-color:chartreuse;">
+			BLOCK INNER
+		</div>
+	</div>
+	
+	<button onclick="changeColor('block1')">Change Color 1</button>
+	
+	<button onclick="changeColor('block2')">Change Color 2</button>
+	
+	<button onclick="appendNew()">Append</button>
+	
+	<button onclick="appendNewEmbed()">Append Embed</button>
+	
+	
+</body>
+
+<script>
+	var colors = ['blue', 'cyan', 'yellow', 'maroon', 'green', 'black', 'gray'];
+	function changeColor(block){
+		var obj = document.getElementById(block).block;
+		obj.setBackColor(colors[Math.floor(Math.random() * colors.length)]);
+	}
+	
+	function appendNew(){
+		var div = $(document.createElement('div'));
+		div.attr('molecule', 'block');
+		div.appendTo(document.body);
+	}
+	
+	function appendNewEmbed(){
+		var div = document.createElement('div');
+		div.style.width = "200px";
+		div.style.height = "200px";
+		div.style.background = 'yellow';
+		div.innerHTML = '<div molecule="block"></div>';
+		document.body.appendChild(div);
+	}
+</script>
+</html>

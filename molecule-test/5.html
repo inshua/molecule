@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="../jquery-3.2.1.js"></script>
+<script src="../molecule.js"></script>
+</head>
+<body>
+	<template>
+		<span molecule-def="A">
+			A:<molecule-placeholder />
+		</span>
+		
+		<span molecule-def=B>
+			B:<span molecule=A><molecule-placeholder /></span>
+		</span>
+		
+		<span molecule-def=C>
+			C:<span molecule=B><molecule-placeholder /></span>
+		</span>
+		
+		<span molecule-def=D>
+			D:<span molecule=C><molecule-placeholder /></span>
+		</span>
+		
+		<span molecule-def=E>
+			E:<span molecule=D><molecule-placeholder /></span>
+		</span>
+	</template>
+	
+	<span molecule=E>
+		Hello World
+	</span>
+	
+</body>
+</html>
