@@ -525,7 +525,7 @@ $(document).ready(function(){
 			if(target.molecule){
 				target.moleculeInstance.onDOMNodeRemoved();
 			}
-			target.querySelectorAll('[molecule]').forEach(ele =>{
+			target.querySelectorAll('[molecule-obj]').forEach(ele =>{
 				ele.moleculeInstance.onDOMNodeRemoved();
 			});
 		}
