@@ -46,14 +46,25 @@ function Molecule(container){
 			
 			me.dispose();
 			if(Molecule.debug) console.info(this.id, ' removed')
-			Molecule.removeInstance(this);
 		}
 	}
 	/**
 	 * molecule原型
 	 * @type {DOMElement} 
 	 */
-	this.moleculePrototype = null;
+	this.moleculePrototypes = [];
+
+	this.is = function(moleculePrototype){
+		if(typeof moleculePrototype == 'string'){
+			for(let m of this.moleculePrototypes){
+				if(m.moleculeName == moleculePrototype || m.getAttribute("molecule-def") == moleculePrototype){
+					return true;
+				}
+			}
+		} else {
+			return this.moleculePrototypes.indexOf(moleculePrototype) != -1;
+		}
+	}
 	
 	this.$el.on('focus', function(ele){
 		me.focus && me.onfocus();
@@ -61,28 +72,8 @@ function Molecule(container){
 	this.$el.on('blur', function(ele){
 		me.blur && me.onblur();
 	});
-	
-	/**
-	 * 移除 molecule
-	 */
-	this.release = function(){
-		if(this.dispose) this.dispose();
-		Molecule.removeInstance(this);
-	}
 }
 
-Molecule.removeInstance = function(instance){
-	var container = instance.el;
-	if(container[instance.moleculePrototype.fullname] == instance){
-		delete container[instane.moleculePrototype.fullname];
-	}
-	if(container[instance.moleculePrototype.name] == instance){
-		delete container[instance.moleculePrototype.name];
-	}
-	if(container['moleculeInstance'] == instance){
-		delete container['moleculeInstance'];
-	}
-};
 
 +(function ( $ ) {
     $.fn.molecule = function() {
@@ -127,9 +118,9 @@ Molecule.loadModule = function(module){
 }
 
 /**
- * 加载指定 html 文件中的所有 molecule，将使用 extract.jssp。
+ * 加载指定 html 文件中的所有 molecule。
  * @param html {string} 包含有 molecule 的 html 文件的文件路径。不用包含webapp路径。
- * @param parseOnServer {Boolean} 是否由服务器解析后提供定义，取 false 时在浏览器通过 DOMParser 解析
+ * @param [parseOnServer=false] {Boolean} 是否由服务器解析后提供定义，取 false 时在浏览器通过 DOMParser 解析, 否则通过 extract.jssp 解析。
  * @returns {Boolean} 是否加载成功
  */
 Molecule.loadHtml = function(res, parseOnServer){
@@ -255,7 +246,9 @@ Molecule.registerPrototype = function(el){
 	if(script){
 		var fun = new Function(script.innerHTML);
 		el.moleculeConstructor = fun;
-		fun.extends = script.getAttribute('extends');
+		if(script.hasAttribute('extends')){
+			fun.extends = script.getAttribute('extends') || true;
+		}
 		script.remove();
 	}
 	Array.prototype.slice.call(el.querySelectorAll('script')).forEach(script => {
@@ -400,26 +393,25 @@ Molecule.scanMolecules = function(starter, manual){
 		
 		function createMoleculeInstance(def){
 			if(def.moleculeConstructor){
-				var exists = target[def.moleculeName];
-				if(exists){
-					if(exists.moleculePrototype = def){
-						throw new Error("already has an instanceof of " + def.moleculeName)
-					}
-				}
+				var exists = target.moleculeInstance;
 				var m = null;
-				if(def.moleculeConstructor.extends){
-					m = target[def.moleculeConstructor.extends];
+				if(exists){
+					if(exists.moleculePrototypes.indexOf(def) != -1){
+						throw new Error("already has an instanceof of " + def.moleculeName);
+					} else {
+						var extend = def.moleculeConstructor.extends;
+						if(extend === true || exists.is(extend)){
+							m = exists;
+						} else {
+							throw new Error(`cannot extends ${def.moleculeName} on ${exists.moleculeName}`);
+						}
+					}
 				} else {
-					m = new Molecule(target);
+					target['moleculeInstance'] = m = new Molecule(target);
 				}
 				if(m == null) debugger;
-				m.moleculePrototype = def;
+				m.moleculePrototypes.push(def);
 				def.moleculeConstructor.call(m);
-				target[def.getAttribute('molecule-def')] = m;
-				if(!exists) target[def.moleculeName] = m;
-				if(target['moleculeInstance'] == null) {
-					target['moleculeInstance'] = m;
-				}
 			}
 		}
 
@@ -513,17 +505,6 @@ Molecule.scanMolecules = function(starter, manual){
 	}
 }
 
-Molecule.allOf = function(ele){
-	var r = []
-	for(var k in ele){if(ele.hasOwnProperty(k) || k != 'moleculeInstance'){
-		var v = ele[k];
-		if(v && v.isMolecule){
-			r.push(k);
-		}
-	}}
-	return r;
-}
-
 $(document).ready(function(){
 	Molecule.scanDefines();
 	Molecule.scanMolecules();
@@ -542,10 +523,10 @@ $(document).ready(function(){
 		var target = (e.originalEvent.target || e.target);
 		if(target.tagName){		// 可能嵌套于未声明为 molecule的元素中，<div><div molecule=...></div></div>, 仅能收到外层 div 的事件
 			if(target.molecule){
-				Molecule.allOf(target).forEach(function(m){m.onDOMNodeRemoved();});
+				target.moleculeInstance.onDOMNodeRemoved();
 			}
-			target.querySelectorAll('[molecule-obj]').forEach(ele =>{
-				Molecule.allOf(ele).forEach(function(m){m.onDOMNodeRemoved();});
+			target.querySelectorAll('[molecule]').forEach(ele =>{
+				ele.moleculeInstance.onDOMNodeRemoved();
 			});
 		}
 	});

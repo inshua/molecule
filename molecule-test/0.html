@@ -13,7 +13,7 @@
 			注明为 construtor 的脚本块是 molecule 构造函数，其中的变量、函数都会放在一个生成的闭包里，不会溢出
 			如果需要溢出，可另外放置 <script></script> 即没有 construtor 说明的普通脚本块。
 		 -->
-		<div molecule-def="block" style="background-color: red; width:100px; height: 100px; margin: 4px;">
+		<div molecule-def="Block" style="background-color: red; width:100px; height: 100px; margin: 4px;">
 			<script constructor>
 				this.setBackColor = function(color){
 					this.el.style.backgroundColor = color;
@@ -27,7 +27,7 @@
 			</script>
 		</div>
 
-		<div molecule-def="yellowBlock" class="yellow-block">
+		<div molecule-def="YellowBlock" class="yellow-block">
 			Embed Style
 			<style>
 				/* 可以嵌入 style */
@@ -43,24 +43,24 @@
 		</div>
 	</template>
 	
-	<div molecule="block" id="block1">
+	<div molecule="Block" id="block1">
 		
 	</div>
 	
-	<div molecule="block" id="block2">
+	<div molecule="Block" id="block2">
 		BLOCK2
 	</div>
 
-	<div molecule="yellowBlock">
+	<div molecule="YellowBlock">
 
 	</div>
 	
-	<div molecule="block" style="background-color: lime; width:200px; height: 200px; margin: 4px;">
+	<div molecule="Block" style="background-color: lime; width:200px; height: 200px; margin: 4px;">
 		OVERRIDE
 	</div>
 
-	<div molecule="block">
-		<div molecule="block" style="width:50%; height:50%; background-color:chartreuse;">
+	<div molecule="Block">
+		<div molecule="Block" style="width:50%; height:50%; background-color:chartreuse;">
 			BLOCK INNER
 		</div>
 	</div>
@@ -85,7 +85,7 @@
 	
 	function appendNew(){
 		var div = $(document.createElement('div'));
-		div.attr('molecule', 'block');
+		div.attr('molecule', 'Block');
 		div.appendTo(document.body);
 	}
 	
@@ -94,7 +94,7 @@
 		div.style.width = "200px";
 		div.style.height = "200px";
 		div.style.background = 'yellow';
-		div.innerHTML = '<div molecule="block"></div>';
+		div.innerHTML = '<div molecule="Block"></div>';
 		document.body.appendChild(div);
 	}
 </script>

@@ -7,14 +7,14 @@
 </head>
 <body>
 	<template>
-		<table molecule-def="a" border="1">
+		<table molecule-def="A" border="1">
 			<caption molecule-socket="caption"></caption>
 			<thead molecule-socket="th">
 			</thead>
 		</table>
 	</template>
 	
-	<table molecule=a>
+	<table molecule=A>
 		<template molecule-plug="caption">Table 1</template>
 		<template molecule-plug="th">
 			<td>name</td>
@@ -24,7 +24,7 @@
 	</table>
 
 	friends:
-	<table molecule=a>
+	<table molecule=A>
 		<template molecule-plug="th">
 			<td>name</td>
 			<td>email</td>

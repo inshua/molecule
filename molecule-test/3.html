@@ -10,14 +10,14 @@
 </script>
 </head>
 <body>
-	<div molecule="greenBlock">
+	<div molecule="GreenBlock">
 	</div>
 	
-	<div molecule="greenBlock">
+	<div molecule="GreenBlock">
 		simple text
 	</div>	
 
-	<div molecule="greenBlock">
+	<div molecule="GreenBlock">
 		Molecule.ready(element, function(){})
 		<script>
 			Molecule.ready(document.currentScript.parentElement, function(){
@@ -28,27 +28,27 @@
 	</div>
 
 	<template>
-		<div molecule-def="yellowBlock" molecule="greenBlock">
-			<script constructor extends="greenBlock">
+		<div molecule-def="YellowBlock" molecule="GreenBlock">
+			<script constructor extends="GreenBlock">
 				this.setBackColor('yellow');
 			</script>
 		</div>
 	</template>
 	
-	<div molecule="yellowBlock" id="aa">
+	<div molecule="YellowBlock" id="aa">
 		yellow intance, derived from green
 	</div>
 	
 
 	<template>
-		<div molecule-def="redBlock" molecule="yellowBlock">
-			<script constructor extends="yellowBlock">
+		<div molecule-def="RedBlock" molecule="YellowBlock">
+			<script constructor extends="YellowBlock">
 				this.setBackColor('red');
 			</script>
 		</div>
 	</template>
 
-	<div molecule="redBlock">
+	<div molecule="RedBlock">
 		red intance, derived from yellow
 	</div>
 	
