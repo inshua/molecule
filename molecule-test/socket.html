@@ -32,13 +32,17 @@
             <div molecule-placeholder="body" style="height:100%"></div>
             <div molecule-socket="status" auto-remove></div>
 		</div>
+
+        <div molecule-def=ClosableWindow molecule=Window>
+            <div style="float: right;margin:2px; color:red;border:1px solid red" molecule-plug="title">X</div>
+        </div>
 	</template>
 	
-	<div molecule=Window>
-		<span molecule-plug="title">title will insert into titlebar</span>
-        <div molecule-replace="body" style="+;color:floralwhite; background-color:burlywood;">
-            body will replace body
-        </div>
+	<div molecule="ClosableWindow">
+        <span molecule-plug="title">Application</span>
+	    <div molecule-replace="body">
+            Close Me!
+	    </div>
 	</div>
 	
 </body>
