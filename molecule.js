@@ -237,7 +237,9 @@ Molecule.registerPrototype = function(el) {
     var depends = el.getAttribute('molecule-depends');
     var escapeTag = el.getAttribute('escape-tag');
     if (escapeTag) el.removeAttribute('escape-tag');
-    var styles = Array.prototype.slice.call(el.querySelectorAll('style')).map(function(style) {
+    var styles = Array.prototype.slice.call(el.querySelectorAll('style'));
+    styles = styles.concat(el.parentElement.querySelectorAll('style[molecule-for=' + fullname + ']'));
+    styles = styles.map(function(style) {
         style.remove();
         return style.innerHTML;
     }).join('\r\n');
@@ -258,13 +260,7 @@ Molecule.registerPrototype = function(el) {
     try {
         var script = el.querySelector('script[constructor]');
         if (script == null) {
-            var next = el.nextElementSibling;
-            if (next && next.hasAttribute('molecule-for')) {
-                var moleculeFor = next.getAttribute('molecule-for');
-                if (moleculeFor == fullname || moleculeFor == r.name) {
-                    script = next;
-                }
-            }
+            script = el.parentElement.querySelector('script[molecule-for=' + fullname + ']');
         }
         if (script) {
             var fun = new Function(script.innerHTML);
@@ -467,20 +463,22 @@ Molecule.scanMolecules = function(starter, manual) {
                 var id = socket.getAttribute('molecule-socket');
                 var plug = null;
                 if (id == null) {
-                    plug = target.querySelector('[molecule-plug]');
+                    plug = target.querySelectorAll('[molecule-plug]');
                 } else {
-                    plug = target.querySelector('[molecule-plug=' + id + ']');
+                    plug = target.querySelectorAll('[molecule-plug=' + id + ']');
                 }
-                if (plug != null) {
-                    var p = plug;
-                    if (p.tagName == 'TEMPLATE') {
-                        p = plug.content;
-                        plug.remove();
-                    	Array.prototype.slice.call(p.childNodes).forEach(child => socket.appendChild(child));
-					} else {
-                    	socket.appendChild(p);
-                    	p.removeAttribute('molecule-plug');
-					}
+                if (plug.length) {
+                	Array.prototype.forEach.call(plug, function(plug){
+	                    var p = plug;
+	                    if (p.tagName == 'TEMPLATE') {
+	                        p = plug.content;
+	                        plug.remove();
+	                    	Array.prototype.slice.call(p.childNodes).forEach(child => socket.appendChild(child));
+						} else {
+	                    	socket.appendChild(p);
+	                    	p.removeAttribute('molecule-plug');
+						}
+                	});
                 }
             });
 
