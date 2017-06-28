@@ -268,7 +268,8 @@ Molecule.registerPrototype = function(el) {
             fun.extends = script.getAttribute('extends') || script.hasAttribute('extends');
             script.remove();
         }
-        Array.prototype.slice.call(el.querySelectorAll('script')).forEach(script => {
+        Array.prototype.concat.call(el.querySelectorAll('script'), 
+        		el.parentElement.querySelectorAll('script[molecule-for=' + fullname + ']')).forEach(script => {
             document.head.appendChild(script);
             script.remove();
         });
