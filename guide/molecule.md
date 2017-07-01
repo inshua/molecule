@@ -288,6 +288,126 @@ molecule 可以继续参与组合更复杂的 molecule， 例如第一版的转�
 
 ![molecule combine](images/molecule-inherit.png?raw=true)
 
+
+## molecule-placeholder
+
+就像html标记一样，molecule实例也可以围合html。何谓围合html，像如下结构：
+```html
+<div molecule-def="MyMolecule">
+	<span>dog</span>
+</div>
+<div molecule="MyMolecule">bone</div>
+```
+MyMolecule实例化后，`bone`默认位于 `dog` 之后。
+
+如需要将 bone 放在 dog 之前，或其它自己想要围合的位置，可以使用 molecule 定义的特殊 tag：` <molecule-placeholder />`，用法如：
+
+```html
+<template>
+	<div molecule-def="MyMolecule">
+		<molecule-placeholder />
+		<span>dog</span>
+	</div>
+</template>
+<div molecule="MyMolecule">bone</div>
+```
+
+![molecule inject](images/molecule-inject-pos.png?raw=true)
+
+除用于围合外，molecule-placeholder　也支持按 id 替换。
+
+如示例中：
+
+```html
+	<template>
+		<div molecule-def="A">
+			from <span molecule-placeholder="p1" required></span> to <span molecule-placeholder="p2">New York</span>, exhaust 80 days
+		</div>
+		
+	</template>
+	
+	<div molecule=A>
+		<span molecule-replace="p1">Tokyo</span>
+	</div>
+	
+	<div molecule=A>
+		<span molecule-replace="p1">Peking</span>
+		<span molecule-replace="p2">Konton</span>
+	</div>
+```
+
+通过命名 p1 p2，及指定实例的 molecule-replace ，可以替换指定的 molecule-placeholder。
+
+## molecule-slot and molecule-plug
+
+molecule-placeholder 总是将占位元素删除，有时只希望实例将元素插入到原型相应的位置。此时 molecule-slot 和 molecule-plug 更有效。
+
+如：
+
+```html
+	<template>
+		<div molecule-def="Window">
+			<div molecule-slot="toolbar">
+			</div>
+		</div>
+		
+	</template>
+	
+	<div molecule="Window">
+		<button molecule-plug="toolbar">Open</button>
+		<div molecule-plug="toolbar" class="edit band">
+			<button>Copy</button>
+			<button>Cut</button>
+			<button>Paste</button>
+		</div>
+	</div>
+```
+
+## Table 元素的处理
+
+在html中，td tr 等元素只能从属于相应的父节点。如 tr 只能属于 thead,tbody,tfoot,table中的一个，如将其置于 div 中，会由于归属问题导致事实上插入失败。
+
+molecule 可自动处理 tr td 等表格元素。但需要将实例的元素改写为 `m:tr`, `m:td`, `m:th` 等等的形式。
+
+另外，在声明部分的 placeholder 不能使用 `<molecule-placeholder>`，应使用 `<template molecule-placeholder>`。这是因为 `template` 可以放入任意元素中。
+
+```html
+	<div molecule-def="A">
+		<table>
+			<thead>
+				<tr>
+					<!-- template 可以插入到 table 元素下而不产生排斥反应，所以在这种场景应使用 template molecule-placeholder --> 
+					<template molecule-placeholder></template> 
+				</tr>
+			</thead>
+		</table>
+	</div>
+	<div molecule="A">
+		<m:td>name</m:td>
+	</div>
+```
+
+对于原型为 table 元素的 `molecule-slot`，其实例 `molecule-plug` 的写法如下：
+
+```html
+	<template>
+		<table molecule-def="A" border="1">
+			<caption molecule-slot="caption"></caption>
+			<thead molecule-slot="thead">
+			</thead>
+		</table>
+	</template>
+	
+	<table molecule=A>
+		<template molecule-plug="caption">Table 1</template>
+		<template molecule-plug="thead"> <!-- template 包含的各个 td 都插入到原型 slot 中 -->
+			<td>name</td>
+			<td>email</td>
+			<td>address</td>
+		</template>
+	</table>
+```
+
 ## molecule 与 d2js 的渲染收集
 
 对molecule渲染和收集，需要 molecule 构造函数中提供名为 `getValue` 和 `setValue`的两个函数，指定渲染器为 `renderer="molecule"`，收集器的第一个管道函数为 `m`，如 `m|s` 或 `m|oc`。
@@ -394,39 +514,6 @@ molecule 不但可以用于定义它的网页，也可以作为组件导入到�
 </html>
 ```
 
-## molecule的命名空间
-
-molecule 可以按命名空间组织，只要在组件前加上命名空间即可。如：
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Molecule</title>
-<script src="../jslib/jquery-3.2.1.js"></script>
-<script src="../jslib/molecule.js"></script>
-</head>
-<body>
-	<template>
-		<div molecule-def="my.molecule.AmazingMolecule">
-			<input value="Hello World"><button id="bnUpperCase">Upper Case</button>
-			<script construtor>
-				this.$el.find('#bnUpperCase').click(function(){
-					var $tx = $(this).parent().find('input');
-					$tx.val($tx.val().toUpperCase());
-				})
-			</script>
-		</div>
-	</template>
-	<!-- 创建 3 个实例 -->
-	<div molecule="my.molecule.AmazingMolecule"></div>
-	<div molecule="my.molecule.AmazingMolecule"></div>
-	<div molecule="my.molecule.AmazingMolecule"></div>
-</body>
-
-</html>
-```
 
 ## 常用的 molecule
 
@@ -504,47 +591,7 @@ molecule 可以按命名空间组织，只要在组件前加上命名空间即�
 </script>
 ```
 
-### 如何实现将实例所要围合的html放置在想放置的位置
-
-就像html标记一样，molecule实例也可以围合html。所谓围合html，就像如下结构：
-```html
-<div molecule-def="MyMolecule"><span>dog</span></div>
-<div molecule="MyMolecule">bone</div>
-```
-MyMolecule实例化后，`bone`默认位于 `dog` 之后。
-
-如需要将 bone 放在 dog 之前，或其它自己想要围合的位置，可以使用 molecule 定义的特殊 tag：` <molecule-placeholder />`，用法如：
-
-```html
-<template>
-	<div molecule-def="MyMolecule">
-		<molecule-placeholder />
-		<span>dog</span>
-	</div>
-</template>
-<div molecule="MyMolecule">bone</div>
-```
-
-![molecule inject](images/molecule-inject-pos.png?raw=true)
-
-### td 如何直接放在 table molecule 中
-
-像 td 这样的元素，必须放在 tr 标记中。一旦放在不正确的标记包括 table 中，便无法从 innerHTML 获取。如果要达到 
-```html
-<table molecule><td/></table>
-``` 
-这样的效果， 而不是 
-```html
-<table molecule><tr><td/></tr></table>
-```
-需要做两步操作。
-
-0. 在 table molecule-def 处，可加上属性 escape-tag="td"
-0. 在实例 table molecule 中，td前加上 `m:`
-
-这样在展开时，m:td 将自动展开为 td。
-
-可参见 `molecule-test/` 中的示例。
+同样，style 也可以采用这种方式放在 tag 外。
 
 ### molecule 手工初始化
 
@@ -575,5 +622,7 @@ molecule 的析构过程由 Document 的 `DOMNodeRemoved` 事件引发，也即�
 ```html
 	<div molecule="AmazingMolecule" molecule-auto-dispose="false"></div>
 ```
+
+不提供析构函数的 molecule　不会被自动清除，无需声明 molecule-auto-dispose。
 -----
 关于 molecule 更多内容，请参考 `molecule-test` 中的示例。

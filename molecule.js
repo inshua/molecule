@@ -41,7 +41,7 @@ function Molecule(container) {
     var me = this;
 
     this.onDOMNodeRemoved = function() {
-            if (m.dispose) { // 对于不需要关注 dispose 活动的 molecule，无需自动 dispose
+            if (me.dispose) { // 对于不需要关注 dispose 活动的 molecule，无需自动 dispose
                 if (me.$el.closest('[molecule-auto-dispose=false]').length) return; // 不自动删除
 
                 me.dispose();
@@ -87,7 +87,7 @@ Molecule.removeInstance = function(instance) {
 +
 (function($) {
     $.fn.molecule = function() {
-        return this['moleculeInstance'];
+        return Molecule.of(this);
     };
 }(jQuery));
 
@@ -235,15 +235,13 @@ Molecule.scanDefines = function(starter) {
 Molecule.registerPrototype = function(el) {
     var fullname = el.getAttribute('molecule-def');
     var depends = el.getAttribute('molecule-depends');
-    var escapeTag = el.getAttribute('escape-tag');
-    if (escapeTag) el.removeAttribute('escape-tag');
     var styles = Array.prototype.slice.call(el.querySelectorAll('style'));
-    styles = styles.concat(el.parentElement.querySelectorAll('style[molecule-for=' + fullname + ']'));
+    styles = styles.concat(Array.prototype.slice.call(el.parentNode.querySelectorAll("style[molecule-for='" + fullname + "']")));
     styles = styles.map(function(style) {
         style.remove();
         return style.innerHTML;
     }).join('\r\n');
-    if (styles) {
+    if (styles.trim().length) {
         styles = "/*from molecule " + fullname + "*/\r\n" + styles;
         var style = document.createElement('style');
         style.innerHTML = styles;
@@ -260,7 +258,7 @@ Molecule.registerPrototype = function(el) {
     try {
         var script = el.querySelector('script[constructor]');
         if (script == null) {
-            script = el.parentElement.querySelector('script[molecule-for=' + fullname + ']');
+            script = el.parentNode.querySelector("script[molecule-for='" + fullname + "]");
         }
         if (script) {
             var fun = new Function(script.innerHTML);
@@ -268,11 +266,13 @@ Molecule.registerPrototype = function(el) {
             fun.extends = script.getAttribute('extends') || script.hasAttribute('extends');
             script.remove();
         }
-        Array.prototype.concat.call(el.querySelectorAll('script'), 
-        		el.parentElement.querySelectorAll('script[molecule-for=' + fullname + ']')).forEach(script => {
-            document.head.appendChild(script);
-            script.remove();
-        });
+        var scripts = Array.prototype.slice.call(el.querySelectorAll('script'));
+        scripts = scripts.concat( 
+        		Array.prototype.slice.call( el.parentNode.querySelectorAll("script[molecule-for='" + fullname + "']"))
+            ).forEach(script => {
+                document.head.appendChild(script);
+                script.remove();
+            });
 
         Molecule.definesByFullname[fullname] = m[r.name] = el;
         el.moleculeName = r.name;
@@ -339,13 +339,15 @@ Molecule.scanMolecules = function(starter, manual) {
     }
 
     function createMolecule(target) {
+        // molecule 声明先创建子molecule的先创建子 molecule
         if (Molecule.debug) console.log('------------------------------');
-        var node = findMoleculeDef(target.getAttribute('molecule'));
+        var fullname = target.getAttribute('molecule');
+        var node = findMoleculeDef(fullname);
 
         var template = target.cloneNode(false);
 
         var inner = target.innerHTML;
-        if (Molecule.debug) console.info(node.name + ' outerHTML', target.outerHTML);
+        if (Molecule.debug) console.info(fullname + ' outerHTML', target.outerHTML);
 
         if (target.hasAttribute('molecule-trace')) debugger;
 
@@ -355,7 +357,7 @@ Molecule.scanMolecules = function(starter, manual) {
             defs.unshift(node);
         }
         if (Molecule.debug) {
-            console.info('process ' + node.getAttribute('molecule') + ',hierachy path ' + defs.map(function(def) { return def.getAttribute('molecule-def') }).join());
+            console.info('process ' + fullname + ',hierachy path ' + defs.map(function(def) { return def.getAttribute('molecule-def') }).join());
         }
 
         for (var d = 0; d < defs.length; d++) { // 逐代设置属性
@@ -379,30 +381,22 @@ Molecule.scanMolecules = function(starter, manual) {
         var template = defs[0].cloneNode(true);
         for (var d = 1; d < defs.length; d++) { // 逐代设置 innerHTML
             var node = defs[d].cloneNode(true);
-            var isBottom = (d == defs.length - 1),
-                isTop = 0;
-
-            if (isBottom) {
-                // if(Molecule.debug) console.info(node.name + ' replace with ', node.html);
-                applyTemplate(node, template);
-            } else {
-                // if(Molecule.debug) console.info(node.name + ' replace with ', node.html);
-                applyTemplate(node, template);
-            }
+            if(Molecule.debug) console.info('applyTemplate ', template.outerHTML, '\r\nto', node.outerHTML);
+            applyTemplate(node, template);
 			template = node;
+			if(Molecule.debug) console.info('got ', template.outerHTML);
         }
+        if(Molecule.debug) console.info('applyTemplate ', template.outerHTML, 'to', target.outerHTML);
         applyTemplate(target, template);
-        // if(Molecule.debug) console.info(node.name + ' become',target.outerHTML);
+        if(Molecule.debug) console.info(fullname + ' become', target.outerHTML);
 
         target.removeAttribute('molecule');
         if (target.hasAttribute('molecule-obj') == false) target.setAttribute('molecule-obj', node.getAttribute('molecule-def'));
         target.removeAttribute('molecule-def');
-
-        // molecule 声明先创建子molecule的先创建子 molecule
+        
         if (target.hasAttribute('init-children-first')) {
             target.removeAttribute('init-children-first');
             Molecule.scanMolecules(target, manual);
-            target.setAttribute('init-children-first', '');
         }
 
         Molecule.processing = true; // 检查此变量确定是否在 molecule 过程中，如不在过程中可以跳过部分代码
@@ -411,7 +405,7 @@ Molecule.scanMolecules = function(starter, manual) {
         }
         Molecule.processing = false;
 
-        jQuery(target).trigger('molecule-inited', [target, node.fullname]);
+        jQuery(target).trigger('molecule-inited', [target, fullname]);
 
         function createMoleculeInstance(def) {
             if (def.moleculeConstructor) {
@@ -448,7 +442,7 @@ Molecule.scanMolecules = function(starter, manual) {
             Array.prototype.forEach.call(templateMirror.querySelectorAll('[molecule-placeholder]'), function(holder) {
                 var id = holder.getAttribute('molecule-placeholder');
                 var replacer = null;
-                if (id == null) {
+                if (id == null || id == '') {
                     replacer = target.querySelector('[molecule-replace]');
                 } else {
                     replacer = target.querySelector('[molecule-replace=' + id + ']');
@@ -460,8 +454,8 @@ Molecule.scanMolecules = function(starter, manual) {
                     replaceNode(holder, replacer);
                 }   
             });
-            Array.prototype.forEach.call(templateMirror.querySelectorAll('[molecule-socket]'), function(socket) {
-                var id = socket.getAttribute('molecule-socket');
+            Array.prototype.forEach.call(templateMirror.querySelectorAll('[molecule-slot]'), function(slot) {
+                var id = slot.getAttribute('molecule-slot');
                 var plug = null;
                 if (id == null) {
                     plug = target.querySelectorAll('[molecule-plug]');
@@ -474,9 +468,9 @@ Molecule.scanMolecules = function(starter, manual) {
 	                    if (p.tagName == 'TEMPLATE') {
 	                        p = plug.content;
 	                        plug.remove();
-	                    	Array.prototype.slice.call(p.childNodes).forEach(child => socket.appendChild(child));
+	                    	Array.prototype.slice.call(p.childNodes).forEach(child => slot.appendChild(child));
 						} else {
-	                    	socket.appendChild(p);
+	                    	slot.appendChild(p);
 	                    	p.removeAttribute('molecule-plug');
 						}
                 	});
@@ -484,10 +478,20 @@ Molecule.scanMolecules = function(starter, manual) {
             });
 
             var p = templateMirror.querySelector('molecule-placeholder');
+            if(!p) p = templateMirror.querySelector('template[molecule-placeholder]');
             if (p) {
-                target.childNodes.forEach(function(child) {
-                    p.parentNode.insertBefore(child, p);
-                });
+            	var parent = p.parentNode;
+            	var isTableElement = ['TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR'].indexOf(parent.nodeName);
+            	var childNodes = Array.prototype.slice.call(target.childNodes);
+            	var indicator = p;
+            	for(var i=childNodes.length -1; i--; i>=0){
+                    var c = childNodes[i];
+                    if(isTableElement){		// unescapeTableElement
+                    	c = unescapeTableElement(c, parent);
+                    }
+            		parent.insertBefore(c, indicator);
+            		indicator= c;
+            	}
                 p.remove();
             } else {
                 Array.prototype.slice.call(target.childNodes).forEach(child => templateMirror.appendChild(child));
@@ -511,6 +515,47 @@ Molecule.scanMolecules = function(starter, manual) {
         function replaceNode(origin, newNode) {
             origin.parentNode.insertBefore(newNode, origin);
             origin.remove();
+        }
+        
+        function unescapeTableElement(node, parentNode){
+        	var allowedChildren = {
+        	     'TABLE' : ['TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR'],
+        	     'THEAD' : ['TR'],
+        	     'TBODY' : ['TR'],
+        	     'TFOOT' : ['TR'],
+        	     'TR' : ['TH', 'TD']
+        	};
+        	
+        	var allowed = allowedChildren[parentNode.nodeName];
+        	if(node.nodeName.startsWith('M:')){
+        		var tag = node.nodeName.substr(2);
+        		var nd = document.createElement(tag);
+            	for (var i = 0; i < node.attributes.length; i++) {
+                    var attr = node.attributes[i].name;
+                    var v = node.getAttribute(attr);
+                    nd.setAttribute(attr, v);
+                }
+                var nodes = Array.prototype.slice.call(node.childNodes);
+                for(var i = 0;i < nodes.length; i++){
+                	var c = nodes[i];
+                	if(allowedChildren[tag] != null){
+                		c = unescapeTableElement(c, nd);
+                	}
+                    nd.appendChild(c);
+                }
+        		node.remove();
+        		node = nd;
+        	} else {
+        		 var nodes = Array.prototype.slice.call(node.childNodes);
+                 for(var i = 0;i < nodes.length; i++){
+                 	var c = nodes[i];
+                 	if(allowedChildren[tag] != null){
+                 		var c2 = unescapeTableElement(c, nd);
+                 		if(c2 != c){replaceNode(c, c2);}
+                 	}
+                 }
+        	}
+            return node;
         }
 
         return target;
@@ -539,17 +584,44 @@ Molecule.scanMolecules = function(starter, manual) {
     }
 }
 
-Molecule.allOf = function(ele) {
-    var r = []
-    for (var k in ele) {
-        if (ele.hasOwnProperty(k) || k != 'moleculeInstance') {
-            var v = ele[k];
-            if (v && v.isMolecule) {
-                r.push(k);
-            }
-        }
+Molecule.of = function(ele) {
+    if(ele.jquery) ele = ele[0];
+    if(ele == null) return;
+    var r = ele.moleculeInstance;
+    if(r == null && ele.hasAttribute('molecule')) {
+        Molecule.scanMolecules(ele);
+        return ele.moleculeInstance;
     }
     return r;
+}
+
+while(Array.prototype.defCss == null){		// i dont known why plug this function always faild, so...
+	/**
+	 * 使用 js 定义 css
+	* [{$ : 'p', color : 'red', 'font-size' : 'large'}, {$ : 'h1', color : 'blue'}];
+	*/
+	Array.prototype.defCss = function(container){
+		container = container || document.head;
+		var styleElement = document.createElement("style");
+        styleElement.type = "text/css";
+        container.appendChild(styleElement);
+        
+        var styleSheet = styleElement.sheet;
+		for(var i=0; i<this.length; i++){
+			var rule = this[i];
+			var selector = rule.$;
+			var rules = '';
+			for(var attr in rule){ if(rule.hasOwnProperty(attr) && attr != '$'){
+				rules += attr.replace(/_/g, '-') + ':' + rule[attr] + ';';
+			}}
+			if (styleSheet.insertRule)
+	            styleSheet.insertRule(selector + ' {' + rules + '}', styleSheet.cssRules.length);
+	        else if (styleSheet.addRule)
+	            styleSheet.addRule(selector, rules);
+	        			
+		}
+        return styleElement;
+	}
 }
 
 jQuery(document).ready(function() {
@@ -570,10 +642,10 @@ jQuery(document).ready(function() {
         var target = (e.originalEvent.target || e.target);
         if (target.tagName) { // 可能嵌套于未声明为 molecule的元素中，<div><div molecule=...></div></div>, 仅能收到外层 div 的事件
             if (target.molecule) {
-                Molecule.allOf(target).forEach(function(m) { m.onDOMNodeRemoved(); });
+                target.moleculeInstance && target.moleculeInstance.onDOMNodeRemoved();
             }
             Array.prototype.forEach.call(target.querySelectorAll('[molecule-obj]'), ele => {
-                Molecule.allOf(ele).forEach(function(m) { m.onDOMNodeRemoved(); });
+                 target.moleculeInstance && target.moleculeInstance.onDOMNodeRemoved();
             });
         }
     });
