@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Embed Script Src</title>
+<meta charset="utf-8">
+<script src="../jquery-3.2.1.js"></script>
+<script src="../molecule.js"></script>
+</head>
+<body>
+	<template>
+		<div molecule-def="AsyncJs">
+			<script src="http://momentjs.com/downloads/moment-with-locales.min.js"></script>
+			<!-- not exists js, totally failed -->
+<!-- 			<script src="http://momentjs.com/downloads/not-exists.js"></script> -->
+			<script constructor>
+				var a = moment('2016-01-01'); 
+				var b = a.add(1, 'week'); 
+				this.$el.text(a.format('LLLL'));
+			</script>
+		</div>
+		
+	</template>
+	
+	<div molecule=AsyncJs>
+	</div>
+	
+	
+</body>
+</html>
