@@ -483,9 +483,7 @@ molecule 不但可以用于定义它的网页，也可以作为组件导入到�
 <title>Molecule</title>
 <script src="../jslib/jquery-3.2.1.js"></script>
 <script src="../jslib/molecule.js"></script>
-<script>
-	Molecule.loadHtml('a.html')
-</script>
+<molecule src="a.html"></molecule>
 </head>
 <body>
 	<div molecule="AmazingMolecule">
