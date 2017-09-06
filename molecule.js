@@ -132,22 +132,52 @@ Molecule.loadModule = function(module) {
 }
 
 /**
- * loadHtmlInBrowser 的别名
- * @param html {string} 包含有 molecule 的 html 文件的文件路径。不用包含 contexPath 路径。
+ * 加载指定 html 文件中的所有 molecule，将使用 extract.jssp。
+ * @param html {string} 包含有 molecule 的 html 文件的文件路径。不用包含webapp路径。
+ * @param parseOnServer {Boolean} 是否由服务器解析后提供定义，取 false 时在浏览器通过 DOMParser 解析
  * @returns {Boolean} 是否加载成功
  */
-Molecule.loadHtml = async function(res){
-	console.warn(`use <molecule src="${res}"> instead`);
-	return await Molecule.loadHtmlInBrowser(res);
+Molecule.loadHtml = async function(res, parseOnServer) {
+    if (!parseOnServer) return await Molecule.loadHtmlInBrowser(res);
+
+    var result = false;
+    var link = document.createElement('a');
+    link.href = res;
+    jQuery.ajax({
+        url: Molecule.ModulesPath + '/extract.jssp',
+        data: { html: res },
+        processData: true,
+        method: 'post',
+        async: false,
+        cache: false,
+        complete: function(resp, status) {
+            if (status == 'success') {
+                resp = resp.responseJSON;
+                for (var module in resp) {
+                    if (resp.hasOwnProperty(module)) {
+                        var m = Molecule.defines[module];
+                        if (m == null) {
+                            m = Molecule.defines[module] = {};
+                        }
+                        var defs = resp[module];
+                        for (var name in defs) {
+                            if (defs.hasOwnProperty(name)) {
+                                Molecule.definesByFullname[module + '.' + name] = m[name] = defs[name];
+                            }
+                        }
+                        Molecule.loadedModules[module] = true;
+                    }
+                };
+                result = true;
+            }
+        }
+    });
+    return result;
 }
 
 /**
- * 加载指定 html 文件中的所有 molecule。
- * 如无特殊必要，请使用
- * ```html
- * 	<molecule src=""></molecule>
- * ``` 
- * @param html {string} 包含有 molecule 的 html 文件的文件路径。不用包含 contexPath 路径。
+ * 加载指定 html 文件中的所有 molecule，将使用 extract.jssp。
+ * @param html {string} 包含有 molecule 的 html 文件的文件路径。不用包含webapp路径。
  * @returns {Boolean} 是否加载成功
  */
 Molecule.loadHtmlInBrowser = async function(res) {
@@ -492,7 +522,7 @@ Molecule.scanMolecules = function(starter, manual) {
             	var isTableElement = ['TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR'].indexOf(parent.nodeName);
             	var childNodes = Array.prototype.slice.call(target.childNodes);
             	var indicator = p;
-            	for(var i=childNodes.length -1; i--; i>=0){
+            	for(var i=childNodes.length -1; i>=0; i--){
                     var c = childNodes[i];
                     if(isTableElement){		// unescapeTableElement
                     	c = unescapeTableElement(c, parent);
