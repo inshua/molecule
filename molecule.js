@@ -684,11 +684,11 @@ jQuery(document).on('DOMContentLoaded', async function(){
 	jQuery(document).on('DOMNodeRemoved', function(e) {
 	    var target = (e.originalEvent.target || e.target);
 	    if (target.tagName) { // 可能嵌套于未声明为 molecule的元素中，<div><div molecule=...></div></div>, 仅能收到外层 div 的事件
-	        if (target.molecule) {
+	        if (target.moleculeInstance) {
 	            target.moleculeInstance && target.moleculeInstance.onDOMNodeRemoved();
 	        }
 	        Array.prototype.forEach.call(target.querySelectorAll('[molecule-obj]'), ele => {
-	             target.moleculeInstance && target.moleculeInstance.onDOMNodeRemoved();
+	        	ele.moleculeInstance && ele.moleculeInstance.onDOMNodeRemoved();
 	        });
 	    }
 	});
