@@ -367,17 +367,17 @@ molecule-placeholder 总是将占位元素删除，有时只希望实例将元�
 
 在html中，td tr 等元素只能从属于相应的父节点。如 tr 只能属于 thead,tbody,tfoot,table中的一个，如将其置于 div 中，会由于归属问题导致事实上插入失败。
 
-molecule 可自动处理 tr td 等表格元素。但需要将实例的元素改写为 `m:tr`, `m:td`, `m:th` 等等的形式。
+molecule 可自动处理 tr td 等表格元素。只要将子元素对子元素添加 `molecule-placeholder` 属性即可，如： `<tr molecule-placeholder>`。
 
-另外，在声明部分的 placeholder 不能使用 `<molecule-placeholder>`，应使用 `<template molecule-placeholder>`。这是因为 `template` 可以放入任意元素中。
+需要说明的是，如 molecule 需要实例 tr td th 等元素放在 div 等非适配表格元素中，需要将实例的元素改写为 `m:tr`, `m:td`, `m:th` 等等的形式。
+
 
 ```html
 	<div molecule-def="A">
 		<table>
 			<thead>
 				<tr>
-					<!-- template 可以插入到 table 元素下而不产生排斥反应，所以在这种场景应使用 template molecule-placeholder --> 
-					<template molecule-placeholder></template> 
+					<td molecule-placeholder></td> 
 				</tr>
 			</thead>
 		</table>
@@ -494,24 +494,6 @@ molecule 不但可以用于定义它的网页，也可以作为组件导入到�
 可以看到，`/a.html` 中定义的molecule _AmazingMolecule_ 已经在 b.html 实例化了。
 
 这种加载方式是通过 `DOMParser` 在浏览器实现的。
-
-使用 d2js 服务器技术时，除了该方式，还可以将 a.html 放在 `molecules 文件夹`，在浏览器地址栏输入 `molecules/extract.jssp`, 该 `extract.jssp` 运行后，a.html 中的 molecule 即进入组件库（生成 namespace.json 文件），这种方式自动在服务器按需加载 molecule：
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Molecule</title>
-<script src="../jslib/jquery-3.2.1.js"></script>
-<script src="../jslib/molecule.js"></script>
-</head>
-<body>
-	<div molecule="AmazingMolecule">
-</body>
-</html>
-```
-
 
 ## 常用的 molecule
 
