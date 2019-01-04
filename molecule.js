@@ -33,65 +33,59 @@ function Molecule(container) {
 	 */
     this.el = container;
 
-    this.isMolecule = true;
-    
-    /**
-	 * 是否为某种类型的 molecule
-	 * 
-     * @param molecule {string|object} 
-	 * @returns {bool}
-	 */
-    this.is = function(molecule){
-    	if(typeof molecule == 'string'){
-            return this.moleculePrototype.moleculeName == molecule
-        } else if (typeof molecule == 'function'){
-            return this.moleculePrototype.moleculeConstructor == molecule
-        } else if(molecule instanceof HTMLElement){
-            return this.el == molecule
-        } else if(typeof molecule == 'object'){
-            return molecule == this
-        }
-    }
-    
     /**
 	 * molecule 所附着的 html 元素的 jQuery 包装
 	 * 
 	 * @type {jQueryElement}
 	 */
+
     this.$el = jQuery(container);
     if (container == null) debugger;
-    var me = this;
 
-    this.onDOMNodeRemoved = function() {
-            if (me.dispose) { // 对于不需要关注 dispose 活动的 molecule，无需自动 dispose
-                if (me.$el.closest('[molecule-auto-dispose=false]').length) return; // 不自动删除
-
-                me.dispose();
-                if (Molecule.debug) console.info(this.id, ' removed')
-                Molecule.removeInstance(this);
-            }
-        }
 	/**
 	 * molecule原型
 	 * 
 	 * @type {DOMElement}
 	 */
     this.moleculePrototype = null;
+}
 
-    this.$el.on('focus', function(ele) {
-        me.focus && me.onfocus();
-    });
-    this.$el.on('blur', function(ele) {
-        me.blur && me.onblur();
-    });
+Molecule.prototype = { isMolecule: true }
 
-    /**
-	 * 移除 molecule
-	 */
-    this.release = function() {
-        if (this.dispose) this.dispose();
+Molecule.prototype.onDOMNodeRemoved = function() {
+    if (this.dispose) { // 对于不需要关注 dispose 活动的 molecule，无需自动 dispose
+        if (this.$el.closest('[molecule-auto-dispose=false]').length) return; // 不自动删除
+
+        this.dispose();
+        if (Molecule.debug) console.info(this.id, ' removed')
         Molecule.removeInstance(this);
     }
+}
+
+/**
+ * 是否为某种类型的 molecule
+ * 
+ * @param molecule {string|object} 
+ * @returns {bool}
+ */
+Molecule.prototype.is = function(molecule){
+    if(typeof molecule == 'string'){
+        return this.moleculePrototype.moleculeName == molecule
+    } else if (typeof molecule == 'function'){
+        return this.moleculePrototype.moleculeConstructor == molecule
+    } else if(molecule instanceof HTMLElement){
+        return this.el == molecule
+    } else if(typeof molecule == 'object'){
+        return molecule == this
+    }
+}
+
+/**
+* 移除 molecule
+*/
+Molecule.prototype.release = function() {
+   if (this.dispose) this.dispose();
+   Molecule.removeInstance(this);
 }
 
 Molecule.removeInstance = function(instance) {
@@ -107,8 +101,13 @@ Molecule.removeInstance = function(instance) {
     }
 };
 
-+
-(function($) {
+Molecule.prototype.handleAttributeChange = jQuery.noop;
+
+Molecule.prototype.moleculeName = function(){
+    return this.moleculePrototype.moleculeName;
+};
+
++(function($) {
     $.fn.molecule = function() {
         return Molecule.of(this);
     };
@@ -145,7 +144,7 @@ Molecule.ready = function(element, handler) {
 Molecule.scanDefines = async function(starter, baseUrl) {
     for(var template of Array.prototype.slice.call((starter || document).querySelectorAll('template'))){
         var found = false;
-        for(var el of Array.prototype.slice.call(template.content.querySelectorAll('[molecule-def]'))) {
+        for(var el of Array.prototype.slice.call(template.content.querySelectorAll('[m-def]'))) {
             await Molecule.registerPrototype(el, baseUrl);
             el.remove();
             found = true;
@@ -160,7 +159,7 @@ Molecule.scanDefines = async function(starter, baseUrl) {
 
 Molecule._LOAD_ONCE_RESOURCE = {};
 Molecule.registerPrototype = async function(el, baseUrl) {
-    var fullname = el.getAttribute('molecule-def');
+    var fullname = el.getAttribute('m-def');
     var styles = Array.prototype.slice.call(el.querySelectorAll('style'));
     styles = styles.concat(Array.prototype.slice.call(el.parentNode.querySelectorAll("style[molecule-for='" + fullname + "']")));
     styles = styles.map(function(style) {
@@ -174,7 +173,7 @@ Molecule.registerPrototype = async function(el, baseUrl) {
         document.head.appendChild(style);
     }
 
-    console.log('define molecule ' + fullname);
+    //console.log('define molecule ' + fullname);
 
     try {
         var script = el.querySelector('script[constructor]');
@@ -182,21 +181,13 @@ Molecule.registerPrototype = async function(el, baseUrl) {
             script = el.parentNode.querySelector("script[molecule-for='" + fullname + "']");
         }
         if (script) {
-        	try{
-	            var fun = new Function(script.innerHTML);
-	            el.moleculeConstructor = fun;
-	            fun.extends = script.getAttribute('extends') || script.hasAttribute('extends');
-	            script.remove();
-        	} catch(e){
-        		// https://stackoverflow.com/questions/18624395/find-where-a-syntax-error-occurs-when-new-function-fails
-        	    (function addCode(js) {
-        	        var e = document.createElement('script');
-        	        e.type = 'text/javascript';
-        	        e.src = 'data:text/javascript;charset=utf-8,' + escape(js);
-        	        document.body.appendChild(e);
-        	        console.warn("Inserted Script for ", js);
-        	      })(script.innerHTML.replace(/;/g,";\n"));
-        	}
+            var fun = new Function(script.innerHTML);
+            if(script.hasAttribute('module')){
+                fun.module = await import(script.getAttribute('module'))
+            }
+            el.moleculeConstructor = fun;
+            fun.extends = script.getAttribute('extends') || script.hasAttribute('extends');
+            script.remove();
         }
         var scripts = Array.prototype.slice.call(el.querySelectorAll('script'));
         scripts = scripts.concat( 
@@ -204,10 +195,10 @@ Molecule.registerPrototype = async function(el, baseUrl) {
             )
         var css = Array.prototype.slice.call(el.querySelectorAll('link[rel=stylesheet]'));
         css = css.concat(Array.prototype.slice.call(el.parentNode.querySelectorAll("link[rel=stylesheet][molecule-for='" + fullname + "']")))
-        var molecules = Array.prototype.slice.call(el.querySelectorAll('molecule[src]'));  
-        molecules = molecules.concat(Array.prototype.slice.call(el.parentNode.querySelectorAll("molecule[src][molecule-for='" + fullname + "']")));
+        var moleculeRefs = Array.prototype.slice.call(el.querySelectorAll('molecule[src]'));  
+        moleculeRefs = moleculeRefs.concat(Array.prototype.slice.call(el.parentNode.querySelectorAll("molecule[src][molecule-for='" + fullname + "']")));
         var asyncScripts = [];
-        scripts.concat(css).concat(molecules).forEach(script => {
+        scripts.concat(css).concat(moleculeRefs).forEach(script => {
         	var append = true;
         	var isCss = (script.tagName == 'LINK');
         	var attr = 'src';
@@ -257,9 +248,6 @@ Molecule.registerPrototype = async function(el, baseUrl) {
     			await Molecule.loadHtml(src);
     			next(resolve, reject);
     		} else {
-    			if(script.baseURI == 'about:blank'){	//safari
-    				script.src = absolute(baseUrl, script.src)
-    			}
 				script.onload = function(){
 					if(Molecule.debug) console.log(this.src + ' loaded')
 					next(resolve, reject);
@@ -271,7 +259,6 @@ Molecule.registerPrototype = async function(el, baseUrl) {
     
     function absolute(base, relative) {
     	if(relative.charAt(0) == '/') return relative;
-    	if(/^http[s]?:\/\//.test(relative)) return relative;
     	
         var stack = base.split("/"),
             parts = relative.split("/");
@@ -319,7 +306,7 @@ Molecule.scanMolecules = function(starter, manual) {
     var stk = [starter];
     while (stk.length) {
         var ele = stk.pop();
-        if (ele.hasAttribute('molecule')) {
+        if (ele.hasAttribute('m')) {
             if (ele.getAttribute('molecule-init') == 'manual' && !manual) continue; // 跳过声明为手工创建的元素
             createMolecule(ele);
         }
@@ -344,7 +331,7 @@ Molecule.scanMolecules = function(starter, manual) {
     function createMolecule(target) {
         // molecule 声明先创建子molecule的先创建子 molecule
         if (Molecule.debug) console.log('------------------------------');
-        var fullname = target.getAttribute('molecule');
+        var fullname = target.getAttribute('m');
         var node = findMoleculeDef(fullname);
 
         var template = target.cloneNode(false);
@@ -362,12 +349,12 @@ Molecule.scanMolecules = function(starter, manual) {
         }
 
         var defs = [node];
-        while (node.hasAttribute('molecule')) {
-            node = findMoleculeDef(node.getAttribute('molecule'));
+        while (node.hasAttribute('m')) {
+            node = findMoleculeDef(node.getAttribute('m'));
             defs.unshift(node);
         }
         if (Molecule.debug) {
-            console.info('process ' + fullname + ',hierachy path ' + defs.map(function(def) { return def.getAttribute('molecule-def') }).join());
+            console.info('process ' + fullname + ',hierachy path ' + defs.map(function(def) { return def.getAttribute('m-def') }).join());
         }
 
         for (var d = 0; d < defs.length; d++) { // 逐代设置属性
@@ -400,9 +387,9 @@ Molecule.scanMolecules = function(starter, manual) {
         applyTemplate(target, template);
         if(Molecule.debug) console.info(fullname + ' become', target.outerHTML);
 
-        target.removeAttribute('molecule');
-        if (target.hasAttribute('molecule-obj') == false) target.setAttribute('molecule-obj', node.getAttribute('molecule-def'));
-        target.removeAttribute('molecule-def');
+        target.removeAttribute('m');
+        if (target.hasAttribute('m-inst') == false) target.setAttribute('m-inst', node.getAttribute('m-def'));
+        target.removeAttribute('m-def');
         
         if (target.hasAttribute('init-children-first')) {
             target.removeAttribute('init-children-first');
@@ -436,12 +423,16 @@ Molecule.scanMolecules = function(starter, manual) {
                         }
                     }
                 } else {
-                    m = new Molecule(target);
+                    if(def.moleculeConstructor.module){                        
+                        m = new (def.moleculeConstructor.module.default)(target)
+                    } else {
+                        m = new Molecule(target);
+                    }
                 }
                 if (m == null) debugger;
                 m.moleculePrototype = def;
                 def.moleculeConstructor.call(m);
-                target[def.getAttribute('molecule-def')] = m;
+                target[def.getAttribute('m-def')] = m;
                 if (!exists) target[def.moleculeName] = m;
                 if (target['moleculeInstance'] == null) {
                     target['moleculeInstance'] = m;
@@ -593,14 +584,44 @@ Molecule.scanMolecules = function(starter, manual) {
 }
 
 Molecule.of = function(ele) {
-	if(ele == null) return;
     if(ele.jquery) ele = ele[0];
+    if(ele == null) return;
     var r = ele.moleculeInstance;
-    if(r == null && ele.hasAttribute('molecule')) {
+    if(r == null && ele.hasAttribute('m')) {
         Molecule.scanMolecules(ele);
         return ele.moleculeInstance;
     }
     return r;
+}
+
+while(Array.prototype.defCss == null){		// i dont known why plug this
+											// function always faild, so...
+	/**
+	 * 使用 js 定义 css [{$ : 'p', color : 'red', 'font-size' : 'large'}, {$ : 'h1',
+	 * color : 'blue'}];
+	 */
+	Array.prototype.defCss = function(container){
+		container = container || document.head;
+		var styleElement = document.createElement("style");
+        styleElement.type = "text/css";
+        container.appendChild(styleElement);
+        
+        var styleSheet = styleElement.sheet;
+		for(var i=0; i<this.length; i++){
+			var rule = this[i];
+			var selector = rule.$;
+			var rules = '';
+			for(var attr in rule){ if(rule.hasOwnProperty(attr) && attr != '$'){
+				rules += attr.replace(/_/g, '-') + ':' + rule[attr] + ';';
+			}}
+			if (styleSheet.insertRule)
+	            styleSheet.insertRule(selector + ' {' + rules + '}', styleSheet.cssRules.length);
+	        else if (styleSheet.addRule)
+	            styleSheet.addRule(selector, rules);
+	        			
+		}
+        return styleElement;
+	}
 }
 
 jQuery.holdReady(true);
@@ -616,8 +637,7 @@ jQuery(document).on('DOMContentLoaded', async function(){
 	
 	jQuery(document).on('DOMNodeInserted', function(e) {
 	    var target = (e.originalEvent.target || e.target);
-	    if (target.tagName) { // 可能嵌套于未声明为 molecule的元素中，<div><div
-								// molecule=...></div></div>, 仅能收到外层 div 的事件
+	    if (target.tagName) { // 可能嵌套于未声明为 molecule的元素中，<div><div m=...></div></div>, 仅能收到外层 div 的事件
 	        if (Molecule._scanningEle && jQuery.contains(Molecule._scanningEle, target)) return; // 正在扫描父元素，早晚会扫到它
 	        if (Molecule.debug) console.info('DOMNodeInserted ', e.target);
 	        Molecule.scanMolecules(target);
@@ -627,14 +647,33 @@ jQuery(document).on('DOMContentLoaded', async function(){
 	
 	jQuery(document).on('DOMNodeRemoved', function(e) {
 	    var target = (e.originalEvent.target || e.target);
-	    if (target.tagName) { // 可能嵌套于未声明为 molecule的元素中，<div><div
-								// molecule=...></div></div>, 仅能收到外层 div 的事件
+	    if (target.tagName) { // 可能嵌套于未声明为 molecule的元素中，<div><div m=...></div></div>, 仅能收到外层 div 的事件
 	        if (target.moleculeInstance) {
 	            target.moleculeInstance && target.moleculeInstance.onDOMNodeRemoved();
 	        }
-	        Array.prototype.forEach.call(target.querySelectorAll('[molecule-obj]'), ele => {
+	        Array.prototype.forEach.call(target.querySelectorAll('[m-inst]'), ele => {
 	        	ele.moleculeInstance && ele.moleculeInstance.onDOMNodeRemoved();
 	        });
 	    }
-	});
+    });
+    
+    $(function observeThemeChange(){
+        var config = { attributes: true, childList: true, subtree: true, attributeOldValue : true };
+
+        var callback = function(mutationsList) {
+            for(var mutation of mutationsList) {
+                if (mutation.type == 'attributes') {
+                    if(mutation.target.moleculeInstance){
+                        const inst = mutation.target.moleculeInstance;
+                        // if(inst.handleAttributeChange) 
+                        inst.handleAttributeChange(mutation.attributeName, mutation);
+                    }                    
+                }
+            }
+        };
+
+        var observer = new MutationObserver(callback);
+        observer.observe(document.body, config);
+        // observer.disconnect();
+    });
 });

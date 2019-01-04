@@ -1,22 +1,4 @@
-/*******************************************************************************
- * The MIT License (MIT)
- * Copyright © 2015 Inshua,inshua@gmail.com, All rights reserved.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
- * associated documentation files (the “Software”), to deal in the Software without restriction,
- * including without limitation the rights to use, copy, modify, merge, publish, distribute,
- * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all copies or substantial
- * portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
- * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
- * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *******************************************************************************/
+// import {HTML_ATTRS} from './html-attr.js'
 
 /**
  * Molecule 类。 molecule 组件的共同基类。 请按指导手册使用 molecule，不要自己使用构造函数创建。
@@ -26,11 +8,124 @@
  *            {HTMLElement} 所附着的 html 元素
  */
 class Molecule {
-    constructor(element){
+    constructor(element, props){
+        this.isMolecule = true;
+
         this.element = element;
-        this.state = {};
+        element.molecule = this;
+
+        this.props = Object.assign(this.getDefaultProps(), props);        
+        this.state = this.getInitialState();
+
         this.elements = {};
         this.conditions = {};
+        this.attributesWillEcho = [];       // 渲染时将需要回显的HTML属性存于此处，渲染最后一步执行回显
+        
+        this.init();
+        this.render();
+    }
+
+    getDefaultProps(){
+        if(super.getDefaultProps){
+            return Object.assign(super.getDefaultProps(), this.constructor.defaultProps, true);
+        } else{
+            return this.constructor.defaultProps || {};
+        }
+    }
+
+    init(){     // 表达式类型的初始属性，整体在 init 函数中初始化。表达式类型的属性都生成为 ExpressionProperty, 此处进行求值
+        for(let k of Object.keys(this.props)){
+            var v = this.props[k];
+            if(v instanceof ExpressionProperty && !v.isRuntime){
+                v = v.expression.call(this);
+            }
+            this.prop(k, v);
+        }        
+    }
+
+    getInitialState(){
+        return {};
+    }
+
+    renderDOM(){    // 从 DOM 生成
+        
+    }
+
+    renderExpressionProps(){     // 表达式类型的初始属性，整体在 init 函数中初始化。表达式类型的属性都生成为 ExpressionProperty, 此处进行求值
+        for(let k of Object.keys(this.props)){
+            var v = this.props[k];
+            if(v instanceof ExpressionProperty && v.isRuntime){
+                v = v.expression.call(this);
+            }
+            this.prop(k, v);
+        }        
+    }
+
+    render(){
+        this.renderDOM();
+        this.renderExpressionProps();
+        this.echoAttributes();
+    }
+
+    echoAttributes(){
+        for(let propName of this.attributesWillEcho){
+            let desc = this.getPropDesc(propName);
+            if(desc.type != 'x'){
+                var value = this.props[propName];
+                if(desc.type == 'o'){
+                    value = JSON.stringify(value);
+                }
+                if(value != null){
+                    this.element.setAttribute(desc.attr, value);
+                } else {
+                    this.element.removeAttribute(desc.attr);
+                }
+            }
+        }
+        this.attributesWillEcho = [];
+    }
+
+    prop(propName, value, force){
+        if(this.props[propName] === value) {
+            if(force) return;
+        } else {
+            this.props[propName] = value;
+        }
+        var echo = false;
+        if(propName in this.element){     // related attribute of native prop will auto change, if native prop hasnt attr the prop just set to dom element
+            this.element[propName] = value;
+            if(HTML_ATTRS.isCustomProp(propName, this.element.tagName)){    
+                echo = true
+            } else { 
+                // related attribute of native prop will auto change
+            }
+        } else {        // not native property
+            echo = true
+        }
+        if(echo){
+            this.attributesWillEcho.push(propName); // echo back attribute soon
+        }
+        return this;
+    }
+
+    getPropDesc(propName){
+        var t = this.constructor.propDescs;
+        if(t){
+           t = t[propName];
+           if(t) return t;
+           if(super.isMolecule) return super.getPropType(propName);
+        }
+    }
+
+    isBaseType(propName){
+        return 'snbd'.contains(this.getPropDesc(propName));
+    }
+}
+
+class ExpressionProperty{
+    constructor(expression, isRuntime){
+        this.expression = expression;
+        this.isRuntime = isRuntime;
     }
 }
 
@@ -393,63 +488,107 @@ function camelCaseToDash( myStr ) {
 
 
 Molecule.compileDefine = async function(prototypeElement, fullname){
+    const attrReg = /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|e|x])?(?<isRuntime>:r)?$/;
+
+    let uinit = new Unit();
     let c = new ClassDecl(fullname, prototypeElement.extends || 'Molecule')
-    let renderer = new MethodDecl('render', prototypeElement.getAttribute('args') || '');
+    uinit.children.push(c);
+
+    //let init = new ConstructorDecl();
+    let init = new MethodDecl('init');
+    init.children.push(new LineStmt('super.init();'))
+    c.children.push(init);
+
+    let renderer = new MethodDecl('renderDOM', prototypeElement.getAttribute('args') || '');
     c.children.push(renderer);
     
     let defaultProps = {}
+    let propDescs = {}
+
     for(let attr of prototypeElement.attributes){
         var elementName = 'this.element';
 
-        compileAttribute(elementName, attr, renderer.children, defaultProps);
-
-        compileChildren(prototypeElement, elementName, renderer.children);
+        var value = attr.value;
+        let [propName, attrName, type, isCustomProp, isRuntime] = parseAttributeName(prototypeElement, attr.name);
+        var expr = parseAttributeValue(value, type)
+        if(isRuntime){      // put into renderer
+            if(type == 'e'){  // event assign, put into init
+                renderer.children.push(new AttachEventExprStmt(elementName, propName, expr, isCustomProp));
+            } else {
+                renderer.children.push(new PropAssignExprStmt(elementName, propName, expr, isCustomProp));
+                if(isCustomProp) propDescs[propName] = {attr: attrName, isRuntime: isRuntime, type: type};
+            }
+        } else {
+            if(type == 'e'){  // event assign, put into init
+                init.children.push(new AttachEventExprStmt(elementName, propName, expr, isCustomProp));
+            } else {    // values, put into defaultProps
+                if(type == 'x'){
+                    defaultProps[propName] = FunctionDecl.fromStatements('', [new ReturnStmt(expr)]);
+                } else {
+                    defaultProps[propName] = expr;
+                }
+                if(isCustomProp) propDescs[propName] = {attr: attrName, isRuntime: isRuntime, type: type};
+            }
+        }                
+        compileChildren(prototypeElement, elementName, renderer);
     }
 
-    function parseAttributeName(name){
-        var type = 's', isProp = false;       // type can be: s, n, b, o, d, e
-        const reg = /\:[a-z]+$/
-        let m = reg.exec(name);     // onxxx:e will not be treat as html attr
-        if(m){
-            type = m[0].substr(1);
-            name = name.substr(0, name.length - m[0].length);
+    let defaultPropsStmt = new AssignStmt(fullname + '.defaultProps', new ObjectLiteralExpr(defaultProps));
+    uinit.children.push(defaultPropsStmt);
+
+    let propDescsStmt = new AssignStmt(fullname + '.propDescs', new ObjectLiteralExpr(propDescs));
+    uinit.children.push(propDescsStmt);
+
+    /* 
+        attr syntax: [m-]attr[:n|s|o|b|d|x|e][/r]
+        regexp: /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:[a-z])?(?<isRuntime>\/r)?$/
+    */
+    function parseAttributeName(element, attrName){
+        let groups = attrReg.exec(attrName).groups;
+        let {isCustomProp, name, type, isRuntime} = groups;
+        if(type == ':e' || name.startsWith('on')){
+            isCustomProp = !(name in element);
+            var propName = name;
+        } else {
+            let desc = HTML_ATTRS.ofAttr[name];            
+            if(desc != null) var propName = desc.prop;
+            
+            isCustomProp = isCustomProp || propName == null || (!desc.global && desc.tags.indexOf(element.tagName.toLowerCase()) == -1);
+            if(isCustomProp && propName == null){
+                propName = dashToCamelCase(name);       // prop without attr
+            }
         }
-        if(name.startsWith('m-')){
-            name = name.substr(2);
-            isProp = true;
-        }
-        name = dashToCamelCase(name);
-        if(name == 'class') name = 'className';
-        return [name, type, isProp];
+        let isCustomAttr = HTML_ATTRS.isCustomAttr(name, element.tagName);
+        return [propName, isCustomAttr ? name + (type||'') : name, type ? type.substr(1) : 's', isCustomProp, isRuntime && true];
     }
 
     function parseAttributeValue(value, type){
-        if(value[0] == '{' && value.endsWith('}')){     // expr
+        if(type == 'x' || type == 'e'){     // expr
             return new Expr(value);
         } else {
             return new LiteralExpr(value, type);
         }
     }
 
-    function compileAttribute(elementName, attr, codeContainer){
-        var value = attr.value;
-        let [name, type, isProp] = parseAttributeName(attr.name);
-        var expr = parseAttributeValue(value, type)
-        if(type == 'e'){
-            codeContainer.push(new AttachEventExprStmt(elementName, name, expr, isProp));
-        } else {
-            codeContainer.push(new AttrAssignExprStmt(elementName, name, expr, isProp));
-        }
-    }
-
-    function compileChildren(element, elementName, codeContainer){
+    function compileChildren(element, elementName, renderer){
         for(let child of Array.from(element.children)){
             let childElementName = child.tagName + '_' + randomKey();
-            compileCreateInnerElement(childElementName, childKey, child.tagName, elementName, codeContainer);
+            compileCreateInnerElement(childElementName, childKey, child.tagName, elementName, renderer);
             for(let cattr of child.attributes){
-                compileAttribute(childElementName, cattr, codeContainer);
+                let value = cattr.value;
+                let [name, type, isCustomProp, isRuntime] = parseAttributeName(element, cattr.name);
+                if(isRuntime){
+                    throw ':r(render) option can only appear within molecule define';
+                }
+
+                var expr = parseAttributeValue(value, type)
+                if(type == 'e'){
+                    codeBlock.children.push(new AttachEventExprStmt(elementName, name, expr, isCustomProp));
+                } else {
+                    codeBlock.children.push(new PropAssignExprStmt(elementName, name, expr, isCustomProp));
+                }
             }            
-            compileChildren(child, childElementName, codeContainer);
+            compileChildren(child, childElementName, renderer);
         }
     }
 
@@ -465,13 +604,13 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         codeContainer.push(ifStmt);
     }
 
-
-    let code = c.toCode(0);
+    let code = uinit.toCode(0);
     // let script = document.createElement('script');
     // script.setAttribute('molecule-gen', fullname);
     // script.innerHTML = code;
     // document.head.append(script);
     console.log(code);
+    return code;
 }
 
 /**

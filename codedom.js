@@ -21,6 +21,14 @@ class Statement{
     }
 }
 
+class Unit extends Statement{
+
+    toCode(indent){
+        return this.childrenCode(indent-1);
+    }
+    
+}
+
 class Expr extends Statement{
     constructor(code){
         super()
@@ -65,6 +73,28 @@ class LiteralExpr extends Expr{     // const value
     }
 }
 
+class ObjectLiteralExpr extends Expr{
+    constructor(define){
+        super();
+        this.define = define;
+    }
+    toCode(indent){
+        var s = this.indent(indent) + '{\n';
+        for(let k in this.define){
+            let expr = this.define[k];
+            var exprCode = '';
+            if(expr instanceof Expr){
+                exprCode = expr.toCode(expr instanceof FunctionDecl ? indent : 0);
+            } else{
+                exprCode = JSON.stringify(expr);
+            } 
+            s += `${this.indent(indent + 1)}${k}: ${exprCode},\n`
+        }
+        s += this.indent(indent) + '}';
+        return s;
+    }
+}
+
 
 class AssignStmt extends Statement{
     constructor(left, right){
@@ -74,11 +104,11 @@ class AssignStmt extends Statement{
     }
     
     toCode(indent){
-        return this.indent(indent) + this.left + ' = ' + this.right.toCode() + ';';
+        return this.indent(indent) + this.left + ' = ' + this.right.toCode(0) + ';';
     }
 }
 
-class ClassDecl extends Statement{
+class ClassDecl extends Expr{
     constructor(name, extendsClassName){
         super()
         this.name = name;
@@ -90,16 +120,22 @@ class ClassDecl extends Statement{
     }
 }
 
-class FunctionDecl extends Statement{
+class FunctionDecl extends Expr{
     constructor(name, args){
         super()
-        this.name = name;
-        this.args = args;
+        this.name = name || '';
+        this.args = args || '';
     }
 
     toCode(indent){
-        return `${this.indent(indent)}function ${name} (${this.args}) {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
+        return `${this.indent(indent)}function ${name}(${this.args}) {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
     }
+}
+
+FunctionDecl.fromStatements = function(name, statements){
+    let r = new FunctionDecl(name);
+    r.children = statements;
+    return r;
 }
 
 class MethodDecl extends Statement{
@@ -110,7 +146,17 @@ class MethodDecl extends Statement{
     }
 
     toCode(indent){
-        return `${this.indent(indent)}${this.name} (${this.args}) {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
+        return `${this.indent(indent)}${this.name}(${this.args || ''}) {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
+    }
+}
+
+class ConstructorDecl extends Statement{
+    constructor(){
+        super()
+    }
+
+    toCode(indent){
+        return `${this.indent(indent)}constructor() {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
     }
 }
 
@@ -125,33 +171,38 @@ class LineStmt extends Statement{
     }
 }
 
-class AttrAssignExprStmt extends Statement{
-    constructor(elementName, attrName, expr, isProp){
+class PropAssignExprStmt extends Statement{
+    constructor(elementName, propName, expr, isCustomProp){
         super()
         this.elementName = elementName
-        this.attrName = attrName;
+        this.propName = propName;
         this.expr = expr;
-        this.isProp = isProp;
+        this.isCustomProp = isCustomProp;
     }
     toCode(indent){
-        return `${this.indent(indent)}${this.elementName}.${this.attrName} = ${this.expr.toCode()};`
+        if(this.isCustomProp){
+            //return `${this.indent(indent)}${this.elementName}.setAttribute(${JSON.stringify(this.propName)}, ${this.expr.toCode()});`
+            return `${this.indent(indent)}this.prop(${JSON.stringify(this.propName)}, ${this.expr.toCode()});`
+        } else {
+            return `${this.indent(indent)}${this.elementName}.${this.propName} = ${this.expr.toCode()};`
+        }
     }
 }
 
 class AttachEventExprStmt extends Statement{
-    constructor(elementName, attrName, expr, isProp){
+    constructor(elementName, propName, expr, isCustomProp){
         super()
-        this.elementName = elementName
-        this.attrName = attrName;
+        this.elementName = elementName;   
+        this.propName = propName.substr(2); // bypass 'on'
         this.expr = expr;
-        this.isProp = isProp;
+        this.isCustomProp = isCustomProp;
     }
 
     toCode(indent){
-        if(this.isHtmlAttr){            
-            return `${this.indent(indent)}${this.elementName}.${this.attrName} = ${this.expr.toCode()};`
+        if(! this.isCustomProp){            
+            return `${this.indent(indent)}${this.elementName}.addEventListener(${JSON.stringify(this.propName)}, ${this.expr.toCode()});`
         } else {        // TODO
-            return `${this.indent(indent)}${this.elementName}.${this.attrName} = ${this.expr.toCode()};`
+            return `${this.indent(indent)}jQuery(${this.elementName}).on(${JSON.stringify(this.propName)}, ${this.expr.toCode()});`
         }
     }
 }
@@ -164,6 +215,17 @@ class VarDeclStmt extends Statement{
     }
 
     toCode(indent){
-        return `${this.indent(indent)}var ${this.name} = ${this.initExpr.toCode()}`
+        return `${this.indent(indent)}var ${this.name} = ${this.initExpr.toCode(0)}`
+    }
+}
+
+class ReturnStmt extends Statement{
+    constructor(expr){
+        super()
+        this.expr = expr;
+    }
+
+    toCode(indent){
+        return `${this.indent(indent)}return ${this.expr.toCode(0)};`
     }
 }

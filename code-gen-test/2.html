@@ -11,22 +11,11 @@
     <script src="../molecule.2.js"></script>
 </head>
 <!--
-    1. native attr native prop, 'title' etc
-    2. native attr native prop with typed attr spec, 'title:s' etc
-    3. native attr no prop, 'attr' etc
-    4. customer attr no prop, 'aria-readonly' 'aria-readonly:b' etc
-    5. customer attr but like native, 'value' etc
+    instant override prop
+
+    new Molecule()
 -->
 <body>
-    <!-- attr syntax: [m-]attr[:n|s|o|b|d|x|e][/r] -->
-    <div id="test" attr="a" attr2:n="2" attr3:b="false" attr4:d="2018-01-20" 
-            attr5:o="{name:'jack',gender:'M'}"
-            attr6:x="1 + 2" 
-            onclick:e="this.handleClick"
-            >
-        DIV1
-    </div>
-
     <!--
     
     -->
@@ -42,24 +31,18 @@
         DIV2
     </div>
 
-
-    <div id="test3">
+    <div id="test3" inst-attr:x="2+3">
         DIV3
     </div>
 
     <script>
         (async function () {
-            //var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
             var code = await Molecule.compileDefine(document.getElementById('test2'), 'Test');
             var script = document.createElement('script');
             script.innerHTML = code;
             document.head.appendChild(script);
             
             new Test(document.getElementById('test3'))
-
-            //Molecule.compileDefine(document.getElementById('test2'), 'Test');    
-
-            
         })();
     </script>
 </body>
