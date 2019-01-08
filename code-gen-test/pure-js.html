@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Test Code Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../jquery-3.2.1.js"></script>
+    <script src="../codedom.js"></script>
+    <script src="../html-attr.js"></script>
+    <script src="../molecule-comp.js"></script>
+    <script type='text/javascript' src="https://cdn.jsdelivr.net/npm/jsondiffpatch/dist/jsondiffpatch.umd.min.js"></script>
+</head>
+<body>
+    <div id=test>
+
+    </div>
+    <script>
+        var el = document.getElementById('test');
+        var m = new Molecule(el, {value: 'test'});
+        
+        m.assignChildren([m.create('key-1', 'h1', {a1:1}, [m.create('key-2', 'string', {textContent: 'hello'})])])
+
+        console.log("change text to 'hello world'");
+        //debugger;
+        m.assignChildren([m.create('key-1', 'h1', {a1:1}, [m.create('key-2', 'string', {textContent: 'hello world'})])])
+
+        console.log("append one more text 'world'");
+        m.assignChildren([m.create('key-1', 'h1', {a1:1}, [
+                                                        m.create('key-2', 'string', {textContent: 'HELLO'}), 
+                                                        m.create('key-3', 'string', {textContent: ' WORLD'})])])
+
+        console.log('swap order');
+        m.assignChildren([m.create('key-1', 'h1', {a1:1}, [
+                                                        m.create('key-3', 'string', {textContent: ' world'}), 
+                                                        m.create('key-2', 'string', {textContent: ' hello'})])])
+
+        console.log("remove 'hello'")
+        m.assignChildren([m.create('key-1', 'h1', {a1:1}, [m.create('key-3', 'string', {textContent: 'WORLD'})])])
+    </script>
+</body>
+</html>
