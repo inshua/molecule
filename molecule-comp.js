@@ -5,6 +5,9 @@
  * @param container
  *            {HTMLElement} 所附着的 html 元素
  */
+const jsondiffp = jsondiffpatch.create({objectHash: function(obj, index) {return obj.key;}});
+// jsondiffpatch.clone(obj)
+
 class Molecule {
     constructor(element, props){
         this.isMolecule = true;
@@ -12,36 +15,44 @@ class Molecule {
         this.element = element;
         element.molecule = this;
 
-        this.props = Object.assign(this.getDefaultProps(), props);        
+        this.props = {};
+        this.initProps(props);
+
         this.state = this.getInitialState();
 
         this.children = {};             // key - child      
         this.childrenKeys = [];         // 
-        this.allChildren = {};       // all children key include children of children, avoid recreate
-        this.conditions = {};
-        this.attributesWillEcho = [];       // 渲染时将需要回显的HTML属性存于此处，渲染最后一步执行回显
         
-        this.init();
+        this.containedNodes = {};       // all children key include children of children, for avoid recreation
+        this.container = null;          // container molecule which's containedNodes stored me
+
+        this.attributesWillEcho = [];       // 渲染时将需要回显的HTML属性存于此处，渲染最后一步执行回显
+
+        // first time render, echo props
+        for(var k in this.props){
+            this.prop(k, this.props[k], true);
+        }
         this.render();
     }
 
-    getDefaultProps(){
-        if(super.getDefaultProps){
-            return Object.assign(super.getDefaultProps(), this.constructor.defaultProps, true);
-        } else{
-            return this.constructor.defaultProps || {};
-        }
-    }
-
-    init(){     
-        // 表达式类型的初始属性，整体在 init 函数中初始化。表达式类型的属性都生成为 ExpressionProperty, 此处进行求值
-        for(let k of Object.keys(this.props)){
-            var v = this.props[k];
-            if(v instanceof ExpressionProperty && !v.isRuntime){
-                v = v.expression.call(this);
+    initProps(instanceProps){
+        this.runtimeProps = {};
+        let def = this.constructor.__defaultProps__ || {};
+        for(let k of Object.keys(def)){
+            var prop = def[k];
+            if(k in instanceProps){     // instance props only give literal value, not Prop object
+                prop = prop.replaceExpr(instanceProps[k])
             }
-            this.prop(k, v, true);
-        }        
+            if(prop.isRuntime){
+                this.runtimeProps[k] = prop;
+            }
+            this.props[k] = prop.getValue(this);
+        }
+        for(let k in instanceProps){
+            if(k in this.props == false){
+                this.props[k] = instanceProps[k];
+            }
+        }
     }
 
     getInitialState(){
@@ -52,36 +63,34 @@ class Molecule {
         
     }
 
-    renderExpressionProps(){     // 表达式类型的初始属性，整体在 init 函数中初始化。表达式类型的属性都生成为 ExpressionProperty, 此处进行求值
-        for(let k of Object.keys(this.props)){
-            var v = this.props[k];
-            if(v instanceof ExpressionProperty && v.isRuntime){
-                v = v.expression.call(this);
-            }
+    renderRuntimeProps(){     
+        for(let k of Object.keys(this.runtimeProps)){
+            let v = this.runtimeProps[k].getValue(this);
             this.prop(k, v);
         }        
     }
 
     render(){
+        this.renderRuntimeProps();
         this.renderDOM();
-        this.renderExpressionProps();
         this.echoAttributes();
     }
 
     echoAttributes(){
         for(let propName of this.attributesWillEcho){
-            let desc = this.getPropDesc(propName);
-            if(desc == null){
-                this.element.setAttribute(propName, this.props[propName]);
-            } else if(desc.type != 'x'){
+            let prop = this.getPropDesc(propName);
+            if(prop == null){
+                // this.element.setAttribute(propName, this.props[propName]);  default dont echo
+            } else {
+                let attr = HTML_ATTRS.ofProp[propName] || propName;
                 var value = this.props[propName];
-                if(desc.type == 'o'){
-                    value = JSON.stringify(value);
-                }
                 if(value != null){
-                    this.element.setAttribute(desc.attr, value);
+                    if(prop.type == 'o'){
+                        value = JSON.stringify(value);
+                    }
+                    this.element.setAttribute(attr, value);
                 } else {
-                    this.element.removeAttribute(desc.attr);
+                    this.element.removeAttribute(attr);
                 }
             }
         }
@@ -89,18 +98,18 @@ class Molecule {
     }
 
     prop(propName, value, force){
-        if(!force && this.props[propName] === value) return;
-
-        this.props[propName] = value;
-        var echo = false;
+        if(this.props[propName] === value){
+            if(!force) return;
+        } else {
+            this.props[propName] = value;
+        }
+        
+        let prop = this.getPropDesc(propName);
+        var echo = prop && prop.echo;
         if(propName in this.element){     // related attribute of native prop will auto change, if native prop hasnt attr the prop just set to dom element
             this.element[propName] = value;
         } else {        // not native property
-            if(HTML_ATTRS.isCustomProp(propName, this.element.tagName)){    
-                echo = true
-            } else { 
-                // related attribute of native prop will auto change
-            }
+            // HTML_ATTRS.isCustomProp(propName, this.element.tagName)
         }
         if(echo){
             this.attributesWillEcho.push(propName); // echo back attribute soon
@@ -109,26 +118,21 @@ class Molecule {
     }
 
     setProps(props, force){
+        if(props == null) return;
         for(var p of Object.getOwnPropertyNames(props)){
             this.prop(p, props[p], force);
         }
     }
 
     getPropDesc(propName){
-        var t = this.constructor.propDescs;
-        if(t){
-           t = t[propName];
-           if(t) return t;
-           if(super.isMolecule) return super.getPropType(propName);
-        }
+        return this.runtimeProps[propName] || this.constructor.__defaultProps__[propName];
     }
 
-    isBaseType(propName){
-        return 'snbd'.contains(this.getPropDesc(propName));
-    }
-
-    create(key, tagName, props, children){
-        var element = this.allChildren[key];
+    create(tagName, props, children){
+        props = props || {};
+        var key = props.key;
+        if(key instanceof Function) key = key.call(this);       // 理论上 defaultProps 也可以提供 key，但是没有创建前就计算属性值不妥
+        var element = this.containedNodes[key];
         if(element == null){
             if(tagName == 'string'){
                 element = document.createTextNode(props.textContent);
@@ -136,11 +140,12 @@ class Molecule {
                 element = document.createElement(tagName);
             }
             element.key = key;
-            this.allChildren[key] = element;
+            this.containedNodes[key] = element;
             
             let MoleculeType = Molecule.TYPES[props.m || 'Molecule'];       // all html children will set a molecule object
             var m = new MoleculeType(element, props);
             m.key = key;
+            m.container = this;
         } else {
             var m = element.molecule;
             m.setProps(props);
@@ -155,8 +160,7 @@ class Molecule {
             if(this.childrenKeys.length) this.removeAllChildren()
         } else {
             let newKeys = children.map(c => c.key);
-            var dp = jsondiffpatch.create({objectHash: function(obj, index) {return obj.key;}});
-            var delta = dp.diff(this.childrenKeys, newKeys);
+            var delta = jsondiffp.diff(this.childrenKeys, newKeys);
             if(delta){
                 console.log('diff children of ', this.key, ':', delta);
                 var oldKeys = this.childrenKeys.slice();
@@ -180,6 +184,7 @@ class Molecule {
     insertAt(index, element){
         var old = this.childrenKeys[index];
         if(old){
+            old = this.children[old];
             old.before(element);
             this.childrenKeys.splice(index, 0, element.key);
             this.children[element.key] = element;
@@ -197,7 +202,7 @@ class Molecule {
             el.remove();
         }
         this.children = {};
-        this.childrenKeys = [];            
+        this.childrenKeys = []; 
     }
 
     removeChild(childKey){
@@ -240,16 +245,97 @@ class Molecule {
     }
 
     dispose(){
+        this.removeAllChildren();
         delete this.element['molecule'];
         this.element = null;
+        if(this.container) {
+            delete this.container.containedNodes[this.key];
+        }
     }
 }
 
+Molecule.__defaultProps__ = {}
+
 Molecule.TYPES = {'Molecule': Molecule}
+
+Molecule.extends = function(subclass){
+    let defaultProps = [];
+    for(var p = subclass; ; p = Object.getPrototypeOf(p.prototype).constructor){
+        defaultProps.push(p.defaultProps);
+        if(p == Molecule) break;
+    }
+    defaultProps.reverse();
+    let props = Object.assign.apply(null, [{}].concat(defaultProps));
+    subclass.__defaultProps__ = props;
+    
+    Molecule.TYPES[subclass.name] = subclass;
+}
+
+Molecule.castType = function(value, type){
+    switch(type){
+    case 's':
+        return typeof value == 'string' ? value : value + '';
+    case 'n':
+        return typeof value == 'number' ? value : value * 1;
+    case 'b':
+        switch(typeof value){
+        case'boolean': return r;    
+        case 'string':        
+            value = value.toLowerCase();
+            if(value == 'true') return true;
+            if(value == 'false') return false;
+            if(value == 'y' || value == 'yes') return true;
+            if(value == 'n' || value == 'no') return false;
+            return true;
+        case 'undefined':
+            return true;
+        case 'object':
+            return value != null;
+        default:
+            return value ? true : false;
+        }
+    case 'o':
+        return value;
+    case 'd':
+        switch(typeof value){
+        case 'number':
+            return new Date(value);
+        case 'string':
+            return Date.parse(value);
+        case 'object':
+            return value instanceof Date ? value : new Date(value);
+        default:
+            return new Date(value);
+        }
+    default:
+        return value;
+    }
+}
 
 class ExpressionProperty{
     constructor(expression, isRuntime){
         this.expression = expression;
         this.isRuntime = isRuntime;
+    }
+}
+
+class Prop{
+    // /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|evt])?(?<isRuntime>:r)?(?<isEcho>:e)?$/
+    constructor(expression, type, isRuntime, isNative, echo){
+        this.expression = expression;
+        this.type = type;
+        this.isRuntime = isRuntime;
+        this.isNative = isNative;
+        if(echo == null){
+            if(this.isNative) echo = false;  // native attribute need not echo back
+        }
+        this.echo = echo && true;       // default false
+    }
+    getValue(_this){
+        let r = this.expression instanceof Function ? this.expression.call(_this) : this.expression;
+        return Molecule.castType(r, this.type);
+    }
+    replaceExpr(expr){
+        return new Prop(expr, this.type, this.isRuntime, this.isNative, this.echo);
     }
 }

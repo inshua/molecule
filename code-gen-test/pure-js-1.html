@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Test Code Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../jquery-3.2.1.js"></script>
+    <script src="../codedom.js"></script>
+    <script src="../html-attr.js"></script>
+    <script type='text/javascript' src="https://cdn.jsdelivr.net/npm/jsondiffpatch/dist/jsondiffpatch.umd.min.js"></script>
+    <script src="../molecule-comp.js"></script>
+</head>
+<body>
+    <div id=test>
+
+    </div>
+    <script>
+        var el = document.getElementById('test');
+        
+        class Molecule1 extends Molecule{
+            renderDOM(){
+                let m = this;
+                m.assignChildren([m.create('h1', {key:'key-1'}, [m.create('string', {key: 'key-1-1', textContent: this.props.welcome})]), 
+                          m.create('h2', {key:'key-2'}, [m.create('string', {key: 'key-2-1', textContent: 'my first vdom page'})]), 
+                          m.create('p', {key:'key-3'}, [m.create('string', {key: 'key-3-1', textContent: this.props.now})]), 
+                        ]);
+            }
+        }
+
+        Molecule1.defaultProps = {
+            welcome: new Prop("Hello World", 's', true, false),
+            now : new Prop(() => new Date().toISOString(), 's', true, false)
+        }
+
+        Molecule.extends(Molecule1);
+
+        var m = new Molecule1(el, {m: 'Molecule1', welcome: 'Welcome my boy', now: ()=> `now ${new Date().toISOString()}`});            
+        setInterval(() => m.render(), 50);
+    </script>
+</body>
+</html>
