@@ -23,9 +23,6 @@ class Molecule {
         this.children = {};             // key - child      
         this.childrenKeys = [];         // 
         
-        this.containedNodes = {};       // all children key include children of children, for avoid recreation
-        this.container = null;          // container molecule which's containedNodes stored me
-
         this.attributesWillEcho = [];       // 渲染时将需要回显的HTML属性存于此处，渲染最后一步执行回显
 
         // first time render, echo props
@@ -128,28 +125,26 @@ class Molecule {
         return this.runtimeProps[propName] || this.constructor.__defaultProps__[propName];
     }
 
-    create(tagName, props, children){
-        
-    }
+    toElement(eleDef){
+        var key = eleDef.key;
+        let children = eleDef.children;
+        let tagName = eleDef.$;
+        let props = eleDef.props;
 
-    create(tagName, props, children){
-        props = props || {};
-        var key = props.key;
         if(key instanceof Function) key = key.call(this);       // 理论上 defaultProps 也可以提供 key，但是没有创建前就计算属性值不妥
-        var element = this.containedNodes[key];
+        var element = this.children[key];
         if(element == null){
             if(tagName == 'string'){
                 element = document.createTextNode(props.textContent);
+                delete props['textContent'];
             } else {
                 element = document.createElement(tagName);
             }
             element.key = key;
-            this.containedNodes[key] = element;
             
-            let MoleculeType = Molecule.TYPES[props.m || 'Molecule'];       // all html children will set a molecule object
+            let MoleculeType = Molecule.TYPES[eleDef.m || 'Molecule'];       // all html children will set a molecule object
             var m = new MoleculeType(element, props);
             m.key = key;
-            m.container = this;
         } else {
             var m = element.molecule;
             m.setProps(props);
@@ -178,9 +173,14 @@ class Molecule {
                         let oldIndex = k.substr(1) * 1;
                         this.swap(oldKeys[oldIndex], oldKeys[index]);
                     } else if(op == null && index == null){     // new
-                        this.insertAt(k * 1, children[newKeys.indexOf(childKey)])
+                        let c = children[newKeys.indexOf(childKey)];
+                        this.insertAt(k * 1, this.toElement(c));
+                        c.done = true;
                     }
                 }
+            }
+            for(let c of children){
+                if(!c.done) this.toElement(c);                
             }
         }        
     }
@@ -252,9 +252,6 @@ class Molecule {
         this.removeAllChildren();
         delete this.element['molecule'];
         this.element = null;
-        if(this.container) {
-            delete this.container.containedNodes[this.key];
-        }
     }
 }
 

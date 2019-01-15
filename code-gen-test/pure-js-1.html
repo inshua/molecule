@@ -20,10 +20,9 @@
         
         class Molecule1 extends Molecule{
             renderDOM(){
-                let m = this;
-                m.assignChildren([m.create('h1', {key:'key-1'}, [m.create('string', {key: 'key-1-1', textContent: this.props.welcome})]), 
-                          m.create('h2', {key:'key-2'}, [m.create('string', {key: 'key-2-1', textContent: 'my first vdom page'})]), 
-                          m.create('p', {key:'key-3'}, [m.create('string', {key: 'key-3-1', textContent: this.props.now})]), 
+                this.assignChildren([{$:'h1', key: 'key-1', props:{a1:1}, children: [{$:'string', key:'key-1-1', props:{textContent:this.props.welcome}}]}, 
+                          {$:'h2', key: 'key-2', props:{a1:1}, children: [{$:'string', key:'key-2-1', props:{textContent:'my first vdom page'}}]},
+                          {$:'p', key: 'key-3', children: [{$:'string', key:'key-3-1', props:{textContent:this.props.now}}]}
                         ]);
             }
         }
