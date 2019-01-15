@@ -152,3 +152,236 @@ Test.defaultProps = {       // Prop(value, type, isRuntime, isNative)
 };
 ```
 
+##if 的代码生成
+
+```html
+<if cond="cond1">
+    <div>1</div>
+    <else cond="cond2">
+        <div>2</div>
+    </else>
+    <else>
+        <div>3</div>
+    </else>
+</if>
+```
+
+此段是否可生成
+```js
+    If(cond1, [this.create('div1')], cond2, [this.create('div2'), [this.create('div3')]])
+```
+
+答案是否定的，因为这样会三选一的创建过程变为各个都创建但是只取一个，例如只有 cond1 成立，但 div2 div3 都会创建。
+
+因此必须生成真正的 if 语句。生成一个函数是比较合适的：
+
+```js
+[...].concat((function(){
+    if(cond1){
+        return [this.create('div1')]
+    } else if(cond2){
+        return [this.create('div2')]
+    } else {
+        return [this.create('div3')]
+    }
+}).call(this)).concat(...)
+```
+
+当代码出现 `<if>` `<for>` `"{}"` 时，应当切割出 `].concat(...).concat([`。 这样可以在形式上保证整个代码依然是一个数组。
+
+使用 iterable 应当是更好的选择。
+
+##for 的代码生成
+
+```html
+<for init="init" end="end" inc="">
+    <div key=""></div>
+</for>
+<for it="" of="">
+    <div key=""></div>
+</for>
+<for it="" in="">
+    <div key=""></div>
+</for>
+```
+
+for 循环创建的元素，其key必须显式指定，且其子元素的 key 应从父级得到（考虑 for 嵌套）。因此应先生成父元素再生成子元素。
+
+为了实现for，代码必须表现为
+
+```js
+    currEle = this.create(xx);
+    children = [...];
+    currEle.setChildren(children);
+
+    currEle = children[2];
+    currEle.setChildren();      // 必须使用堆栈跟踪当前元素和 children
+```
+
+也就是说先创建父元素再创建子元素。但是当子元素里有嵌套时这个活动很难进行。
+
+也许将 children 变为一串函数是一个可取的做法。也就是说
+
+```js
+    this.assignChildren([this.create(...), this.create(...)])
+```
+改为
+
+```js
+    this.assignChildren([(parent)=> this.create(...), (parent)=> this.create(...)])
+```
+
+这样所有 children 都不会立即创建，过程将表现为一个闭包一个闭包的展开，先展开父再展开子。采用这种办法上面 if 面临的问题也解决了。
+
+##{{children}}的代码生成
+
+在 text node 里可以放置 {{children}}。
+
+这种代码如何生成呢？
+
+children 将得到一个生成 [] 的表达式，若干个 {{children1}}{{children2}}{{children3}}... 得到 concat().concat().concat()。
+
+表达式里存放的是 ()=> wrap(children1)，
+
+其中 wrap 实现为，
+如数组里放置的是 html node，生成 create;
+如数组里放置的是 string，生成 createString;
+如放置的是一个值, 生成 [createString]
+
+;
+
+## 代码生成
+
+综上所述，代码生成还是用堆栈形态一行行生成较好。
+
+```js
+
+var curr = this;
+var children = [];
+
+children.push(this.create('c1'));    
+children.push(this.create('c2'));    
+
+stack.push([curr, children]);   // c3 has children
+curr = this.create('c3');       
+children.push(curr)
+children = []
+    children.push(this.create('c3-1'));
+    children.push(this.create('c3-2'));
+curr.assignChildren(children);
+curr, children = stack.pop();   // c3 end
+
+stack.push([curr, children]);   // c4 has children
+curr = this.create('c4');
+children.push(curr)       
+children = []
+    children.push(this.create('c4-1')); 
+    
+    stack.push([curr, children]);   // c4-2 has children
+    curr = this.create('c4-2');       
+    children.push(curr)
+    children = []
+        children.push(this.create('c4-2-1')); 
+        children.push(this.create('c4-2-2'));
+    curr.assignChildren(children);
+    curr, children = stack.pop();   // c4-2 end
+curr.assignChildren(children);
+curr, children = stack.pop();       // c4 end
+
+children.push(this.create('c5'));
+
+curr.assignChildren(children)       // end
+
+```
+
+该生成方式本身没有问题。
+
+但是存在一个棘手的其它角度的问题。这个问题来自 expression 类型的 attribute。设想有一个 attribute 是 `width = parent.width * 0.5`。 在创建过程中，assignChidlren 前，容器自己也没有一个确切的宽度。另外，当元素还没有加入 DOM 树时，也不可能计算一些依赖于 document 的表达式。
+
+所以在 react 中又引入了一个 `componentDidMount()` 以切入挂树事件（react 挂的是 vdom，挂树在先 render 在后）。也就是在上面代码的 `//end` 后执行。
+
+我可以将标记为 runtime 的表达式都放到挂树后执行。顺序应该是深度递归的。也可以将表达式属性分为 runtime 和 mount 两种，其中 runtime 类型的在 mount 和 render 时均执行，mount 类型的只在挂树时执行（通常只执行一次）。
+
+是否可以将非 runtime 的表达式统一放在挂树时执行呢？似乎是可以的。
+
+如何判断有没有挂树呢？主要看发起 create 的 molecule 其 element 能不能上溯到 document.body。
+
+综上，此法可解决前面的所有问题。
+
+##{{children}} 的问题
+
+在中间嵌入的 children 有
+* string。 作为 textContent 的 text node 或作为 innerText。
+* dom element / dom elemenets。 前者应自动转为数组。 这种 children 表达式只能是 runtime，所以只能运行于 render 过程。其标注没有提供 html 定义，所以不能从 html compile to js。对应只能生成 `children.extends(this.wrapChildren({{the code}}))。`。
+
+# key 的生成
+
+key 可以由用户自己指定（指定时需保证唯一性），但主要还是自动生成。
+
+生成方法为: 父节点的 key + this.nextKey()
+
+当用户自己提供key时，用户所给的 key 最好能与父节点的 key 合并这样才能足够唯一。用户所给的 key 基本是局部域唯一的，如 id 作为 key，其通常表现为 1,2,3,4... 很容易与生成的 key 冲突。
+
+这个问题的起因是容器和直属容器分离了。更根本的原因是，`this.create('div', null, [this.create(),])` 这样必然要求先创建 children 后创建 parent。
+
+如果能将元素从 container 移到真正的直属容器，则问题可以消除。key 可以局部化。
+
+有两个办法让直属容器真正扮演容器。
+
+1. 指令式创建，一行一行的跑，先创建父再创建子。因此代码生成没有这个问题。代码生成是指令式的。
+1. 数组里不要提供 `[this.create(), this.create()]`，代之以纯粹的 json，如 `[{tag:'div', prop1:'', prop2:''}]`, 从纯 JSON 生成，则可以自主控制顺序，确保先创建父元素。
+1. 数组里提供的是 `[()=> this.create(), ()=>this.create()]`，都是生成器，这样也可以先创建父元素。
+
+
+# 生成方式
+
+综上，还是以数据形式提供树较好。
+
+像 https://github.com/Matt-Esch/virtual-dom 这种框架和 react。使用的形式如下：
+```js
+var VNode = require('virtual-dom/vnode/vnode');
+var VText = require('virtual-dom/vnode/vtext');
+
+function render(data) {
+    return new VNode('div', {
+        className: "greeting"
+    }, [
+        new VText("Hello " + String(data.name))
+    ]);
+}
+
+module.exports = render;
+```
+在创建期就可以调用 VNode 返回 Virtual DOM Node，这是因为它有 vdom 和实际 dom 完全分离。而我并没有实现真正的 vdom，只是实现了 dom children 的整体比对更新而已。
+
+所以人工代码类似：
+
+```js
+    this.assignChildren([{$:'h1', children:[{$:'string', textContent:'hello world'}]}]);
+```
+生成的代码类似:
+
+```js
+    let predicate1 = ()=>{
+        if(cond){
+            return [{$:'string', textContent:'yes'}];
+        } else {
+            return [{$:'string', textContent:'no'}];
+        }
+    };
+    let loop1 = ()=>{
+        return [1,2,3].map((e)=> {$:'div', textContent: e});
+    }
+    let loop2 = ()=>{
+        let r = [];
+        for(var i = 0; i<100; i++){
+            r.extends([{$:'div', key:i, children:[textContent:'hello ' + i]}]).extends(predicate1())
+        }
+        return r;
+    }
+    let children = [{$:'h1', children:[{$:'string', textContent:'hello world'}].concat(predicate1()).concat(loop1)}]
+    this.assignChildren(children);
+```
+
+前面所说的堆栈形态也是可行的。唯不知是堆栈形态的效率高还是这种形态的效率高。从代码优雅程度来看这个是更漂亮。
+

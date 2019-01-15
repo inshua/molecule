@@ -19,41 +19,41 @@
         var el = document.getElementById('test');
         var m = new Molecule(el, {value: 'test'});
         
-        m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [m.create('string', {key: 'key-1-1',  textContent: 'hello'})])])
+        m.assignChildren([{$:'h1', key: 'key-1', a1:1, children: [{$:'key-1-1', textContent:'hello'}]}]);
 
-        console.log("change text to 'hello world'");
-        //debugger;
-        m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [m.create('string', {key: 'key-1-1', textContent: 'hello world'})])])
+        // console.log("change text to 'hello world'");
+        // //debugger;
+        // m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [m.create('string', {key: 'key-1-1', textContent: 'hello world'})])])
 
-        console.log("append one more text 'world'");
-        m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [
-                                                        m.create('string', {key: 'key-1-1', textContent: 'HELLO'}), 
-                                                        m.create('string', {key: 'key-1-2', textContent: ' WORLD'})])])
+        // console.log("append one more text 'world'");
+        // m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [
+        //                                                 m.create('string', {key: 'key-1-1', textContent: 'HELLO'}), 
+        //                                                 m.create('string', {key: 'key-1-2', textContent: ' WORLD'})])])
 
-        console.log('swap order');
-        m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [
-                                                        m.create('string', {key: 'key-1-2', textContent: ' world'}), 
-                                                        m.create('string', {key: 'key-1-1', textContent: ' hello'})])])
+        // console.log('swap order');
+        // m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [
+        //                                                 m.create('string', {key: 'key-1-2', textContent: ' world'}), 
+        //                                                 m.create('string', {key: 'key-1-1', textContent: ' hello'})])])
 
-        console.log("remove key-1-2 'hello'")
-        m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [m.create('string', {key: 'key-1-1', textContent: 'WORLD'})])]);
+        // console.log("remove key-1-2 'hello'")
+        // m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [m.create('string', {key: 'key-1-1', textContent: 'WORLD'})])]);
 
 
-        console.log("restore back");
-        m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [
-                                                        m.create('string', {key: 'key-1-1', textContent: 'HELLO'}), 
-                                                        m.create('string', {key: 'key-1-2', textContent: ' WORLD'})])]);
+        // console.log("restore back");
+        // m.assignChildren([m.create('h1', {key: 'key-1', a1:1}, [
+        //                                                 m.create('string', {key: 'key-1-1', textContent: 'HELLO'}), 
+        //                                                 m.create('string', {key: 'key-1-2', textContent: ' WORLD'})])]);
 
-        console.log("h2 join");
-        m.assignChildren([m.create('h1', {key: 'key-1'}, [m.create('string', {key: 'key-1-1', textContent: 'HELLO WORLD'})]), 
-                          m.create('h2', {key: 'key-2'}, [m.create('string', {key: 'key-2-1', textContent: 'my first vdom page'})]), 
-                        ]);
+        // console.log("h2 join");
+        // m.assignChildren([m.create('h1', {key: 'key-1'}, [m.create('string', {key: 'key-1-1', textContent: 'HELLO WORLD'})]), 
+        //                   m.create('h2', {key: 'key-2'}, [m.create('string', {key: 'key-2-1', textContent: 'my first vdom page'})]), 
+        //                 ]);
         
-        console.log("p join");
-        m.assignChildren([m.create('h1', {key: 'key-1'}, [m.create('string', {key: 'key-1-1', textContent: 'HELLO WORLD'})]), 
-                          m.create('h2', {key: 'key-2'}, [m.create('string', {key: 'key-2-1', textContent: 'my first vdom page'})]), 
-                          m.create('p', {key: 'key-3'}, [m.create('string', {key: 'key-3-1', textContent: 'some text...'})]), 
-                        ]);
+        // console.log("p join");
+        // m.assignChildren([m.create('h1', {key: 'key-1'}, [m.create('string', {key: 'key-1-1', textContent: 'HELLO WORLD'})]), 
+        //                   m.create('h2', {key: 'key-2'}, [m.create('string', {key: 'key-2-1', textContent: 'my first vdom page'})]), 
+        //                   m.create('p', {key: 'key-3'}, [m.create('string', {key: 'key-3-1', textContent: 'some text...'})]), 
+        //                 ]);
     </script>
 </body>
 </html>

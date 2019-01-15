@@ -129,6 +129,10 @@ class Molecule {
     }
 
     create(tagName, props, children){
+        
+    }
+
+    create(tagName, props, children){
         props = props || {};
         var key = props.key;
         if(key instanceof Function) key = key.call(this);       // 理论上 defaultProps 也可以提供 key，但是没有创建前就计算属性值不妥
@@ -149,7 +153,7 @@ class Molecule {
         } else {
             var m = element.molecule;
             m.setProps(props);
-        }        
+        }
         m.assignChildren(children);
         
         return element;
@@ -165,7 +169,7 @@ class Molecule {
                 console.log('diff children of ', this.key, ':', delta);
                 var oldKeys = this.childrenKeys.slice();
                 for(var k in delta){
-                    if(k == '_t') continue;
+                    if(k == '_t') continue;     // in diff result, _t:'a' means type: 'array'
                     
                     let [childKey, index, op] = delta[k];
                     if(index == 0 && op == 0){          // remove
@@ -332,7 +336,7 @@ class Prop{
         this.echo = echo && true;       // default false
     }
     getValue(_this){
-        let r = this.expression instanceof Function ? this.expression.call(_this) : this.expression;
+        let r = this.expression instanceof Function ? this.expression.call(_this) : this.expression;        //TODO 这里用 this 未必恰当，可能需要用 this.container，子元素如何获得父元素的属性呢
         return Molecule.castType(r, this.type);
     }
     replaceExpr(expr){
