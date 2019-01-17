@@ -29,12 +29,14 @@
 
         Molecule1.defaultProps = {
             welcome: new Prop("Hello World", 's', true, false),
-            now : new Prop(() => new Date().toISOString(), 's', true, false)
+            now : new Prop(() => new Date().toISOString(), 's', true, false),
+            click: new Prop(function(){alert(this.element.innerText)}, 'evt', true, true)
         }
 
         Molecule.extends(Molecule1);
 
-        var m = new Molecule1(el, {m: 'Molecule1', welcome: 'Welcome my boy', now: ()=> `now ${new Date().toISOString()}`});            
+        //var m = new Molecule1(el, {m: 'Molecule1'});
+        var m = new Molecule1(el, {m: 'Molecule1', welcome: 'Welcome my boy', now: ()=> `now ${new Date().toISOString()}`});         // override default       
         setInterval(() => m.render(), 50);
     </script>
 </body>

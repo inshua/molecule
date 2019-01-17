@@ -26,6 +26,7 @@ class Molecule {
         this.attributesWillEcho = [];       // 渲染时将需要回显的HTML属性存于此处，渲染最后一步执行回显
 
         // first time render, echo props
+        // for event handler this is a bad call, will bind and unbind once
         for(var k in this.props){
             this.prop(k, this.props[k], true);
         }
@@ -43,7 +44,13 @@ class Molecule {
             if(prop.isRuntime){
                 this.runtimeProps[k] = prop;
             }
-            this.props[k] = prop.getValue(this);
+            if(prop.type == 'evt'){
+                let fun = prop.getValue(this).bind(this);
+                this.element.addEventListener(k, fun);
+                this.props[k] = fun;
+            } else {
+                this.props[k] = prop.getValue(this);
+            }
         }
         for(let k in instanceProps){
             if(k in this.props == false){
@@ -95,7 +102,8 @@ class Molecule {
     }
 
     prop(propName, value, force){
-        if(this.props[propName] === value){
+        let oldValue = this.props[propName];
+        if(oldValue === value){
             if(!force) return;
         } else {
             this.props[propName] = value;
@@ -104,7 +112,14 @@ class Molecule {
         let prop = this.getPropDesc(propName);
         var echo = prop && prop.echo;
         if(propName in this.element){     // related attribute of native prop will auto change, if native prop hasnt attr the prop just set to dom element
-            this.element[propName] = value;
+            if(prop && prop.type == 'evt'){
+                this.element.removeEventListener(propName, oldValue);  // TODO 应准确移除上次绑定的函数
+                let fun = prop.getValue(this).bind(this);
+                this.element.addEventListener(propName, fun);
+                this.props[propName] = fun;
+            } else{
+                this.element[propName] = value;
+            }
         } else {        // not native property
             // HTML_ATTRS.isCustomProp(propName, this.element.tagName)
         }
@@ -321,7 +336,7 @@ class ExpressionProperty{
 }
 
 class Prop{
-    // /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|evt])?(?<isRuntime>:r)?(?<isEcho>:e)?$/
+    // /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|evt])?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/
     constructor(expression, type, isRuntime, isNative, echo){
         this.expression = expression;
         this.type = type;
@@ -333,8 +348,12 @@ class Prop{
         this.echo = echo && true;       // default false
     }
     getValue(_this){
-        let r = this.expression instanceof Function ? this.expression.call(_this) : this.expression;        //TODO 这里用 this 未必恰当，可能需要用 this.container，子元素如何获得父元素的属性呢
-        return Molecule.castType(r, this.type);
+        if(this.type == 'evt'){
+            return Molecule.castType(this.expression, this.type);
+        } else {
+            let r = this.expression instanceof Function ? this.expression.call(_this) : this.expression;        //TODO 这里用 this 未必恰当，可能需要用 this.container，子元素如何获得父元素的属性呢
+            return Molecule.castType(r, this.type);
+        }
     }
     replaceExpr(expr){
         return new Prop(expr, this.type, this.isRuntime, this.isNative, this.echo);

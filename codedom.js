@@ -219,6 +219,21 @@ class VarDeclStmt extends Statement{
     }
 }
 
+class MethodInvokeStmt extends Statement{
+    constructor(instance, methodName, args ){
+        super()
+        this.instance = instance;
+        this.methodName = methodName;
+        this.args = args;        
+    }
+
+    toCode(indent){
+        let s = instance instanceof Expr ? instance.toCode(0) : instance;
+        return `${this.indent(indent)}${s}(${args.map(a => a instanceof Expr ? a.toCode() : JSON.stringify(a)).join()})`
+    }
+}
+
+
 class ReturnStmt extends Statement{
     constructor(expr){
         super()
@@ -227,5 +242,53 @@ class ReturnStmt extends Statement{
 
     toCode(indent){
         return `${this.indent(indent)}return ${this.expr.toCode(0)};`
+    }
+}
+
+class NewInstanceExpr extends Expr{
+    constructor(className, constructArgs){
+        super();
+        this.className = className;
+        this.arguments = constructArgs;
+    }
+
+    toCode(indent){
+        return `new ${this.className}(${constructArgs.map(a => a instanceof Expr ? a.toCode() : JSON.stringify(a)).join()});`
+    }
+}
+
+class DefaultPropExpr extends NewInstanceExpr{
+    // constructor(expression, type, isRuntime, isNative, echo)
+    constructor(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr){
+        if(isExpr){
+            expr = FunctionDecl.fromStatements('',[new ReturnStmt(expr)])
+        }
+        super('Prop', expr,  type, isRuntime, !isCustomProp, isEcho);
+    }
+}
+
+class ArrayLiteralExpr extends Expr{
+    constructor(){
+        super();
+        this.array = [];
+    }
+
+    push(element){
+        this.array.push(element);
+    }
+
+    toCode(indent){
+        return `[${this.array.map(a => a instanceof Expr ? a.toCode() : JSON.stringify(a)).join()}]`;
+    }
+}
+
+class ExpandIteratorFunctionCallExpr extends Expr{
+    constructor(expr){
+        super();
+        this.expr = expr;
+    }
+
+    toCode(){
+        return '...' + this.expr instanceof Expr ? this.expr.toCode() : JSON.stringify(this.expr);
     }
 }

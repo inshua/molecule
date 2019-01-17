@@ -8,6 +8,8 @@
     <script src="../jquery-3.2.1.js"></script>
     <script src="../codedom.js"></script>
     <script src="../html-attr.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jsondiffpatch/dist/jsondiffpatch.umd.min.js"></script>
+    <script src="../molecule-comp.js"></script>
     <script src="../molecule.2.js"></script>
 </head>
 <!--
@@ -22,10 +24,10 @@
     <div id="test" attr="a" attr2:n="2" attr3:b="false" attr4:d="2018-01-20" 
             attr5:o="{name:'jack',gender:'M'}"
             attr6:x="1 + 2" 
-            onclick:e="this.handleClick"
             >
         DIV1
     </div>
+    <!--onclick:e="this.handleClick"-->
 
     <!--
     
@@ -49,13 +51,14 @@
 
     <script>
         (async function () {
-            //var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
-            var code = await Molecule.compileDefine(document.getElementById('test2'), 'Test');
-            var script = document.createElement('script');
-            script.innerHTML = code;
-            document.head.appendChild(script);
+            var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
+            console.log(code);
+            // var code = await Molecule.compileDefine(document.getElementById('test2'), 'Test');
+            // var script = document.createElement('script');
+            // script.innerHTML = code;
+            // document.head.appendChild(script);
             
-            new Test(document.getElementById('test3'))
+            // new Test(document.getElementById('test3'))
 
             //Molecule.compileDefine(document.getElementById('test2'), 'Test');    
 
