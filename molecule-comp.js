@@ -16,7 +16,7 @@ class Molecule {
         element.molecule = this;
 
         this.props = {};
-        this.initProps(props);
+        this.initProps(props || {});
 
         this.state = this.getInitialState();
 
@@ -141,6 +141,8 @@ class Molecule {
     }
 
     toElement(eleDef){
+        if(eleDef instanceof Node) return eleDef;
+        
         var key = eleDef.key;
         let children = eleDef.children;
         let tagName = eleDef.$;
@@ -268,6 +270,31 @@ class Molecule {
         delete this.element['molecule'];
         this.element = null;
     }
+
+    wrapChildren(expr, baseKey){        // TODO assignChildren 时支持 DOM Node 和 string/date/base types...
+        var keyId = 1;
+        if(!Array.isArray(expr)){
+            return [wrapSolo.call(this, expr)]
+        } else {
+            return expr.map(wrapSolo.bind(this));
+        }
+
+        function wrapSolo(expr){
+            if(expr instanceof Node){
+                if(!expr.molecule){
+                    expr.molecule = new Molecule(expr);
+                    expr.molecule.key = expr.key = baseKey + '_' + (keyId++);  
+                }
+                return expr
+            } else if(typeof expr == 'object' && expr.$){
+                if(expr.key == null) expr.key = baseKey + '_' + (keyId++);
+                return this.toElement(expr);
+            } else {
+                var el = this.toElement({$:'string', key: baseKey + '_' + (keyId++), props:{textContent:expr + ''}});
+                return el;
+            }
+        }
+    }
 }
 
 Molecule.__defaultProps__ = {}
@@ -295,7 +322,7 @@ Molecule.castType = function(value, type){
         return typeof value == 'number' ? value : value * 1;
     case 'b':
         switch(typeof value){
-        case'boolean': return r;    
+        case 'boolean': return value;    
         case 'string':        
             value = value.toLowerCase();
             if(value == 'true') return true;

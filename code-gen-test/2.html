@@ -8,41 +8,39 @@
     <script src="../jquery-3.2.1.js"></script>
     <script src="../codedom.js"></script>
     <script src="../html-attr.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jsondiffpatch/dist/jsondiffpatch.umd.min.js"></script>
+    <script src="../molecule-comp.js"></script>
     <script src="../molecule.2.js"></script>
 </head>
 <!--
-    instant override prop
-
-    new Molecule()
+    {{expression}}
 -->
 <body>
-    <!--
-    
-    -->
-    <div id="test2" attr:r="a" attr2:n:r="2" attr3:b:r="false" attr4:d:r="2018-01-20" draggable:b:r="true"
-            attr5:o:r="{name:'jack',gender:'M'}"
-            attr6:x:r="1 + 2" 
-            onclick:e:r="this.handleClick"
-            ontest:e="this.test"
-            aria-readonly:b:r="true"
-            title="test title"
-            value="value not belong to div"
+    <div id="test" attr="a" attr2:n="2" attr3:b="false" attr4:d="2018-01-20" 
+            attr5:o="{name:'jack',gender:'M'}"
+            attr6:x:r:e="1 + 2" 
             >
-        DIV2
+        <h1>
+            Hello World
+        </h1>
+        <h2>this my first vdom page</h2>
+        enjoy it! {{this.props.p1}} {{new Date().toISOString()}}
     </div>
 
-    <div id="test3" inst-attr:x="2+3">
-        DIV3
+    <div id="test3">
     </div>
 
     <script>
         (async function () {
-            var code = await Molecule.compileDefine(document.getElementById('test2'), 'Test');
+            var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
+            
             var script = document.createElement('script');
             script.innerHTML = code;
             document.head.appendChild(script);
             
-            new Test(document.getElementById('test3'))
+            let m = new Test(document.getElementById('test3'), {p1:'jack'})
+
+            //setInterval(()=> m.render(), 100);
         })();
     </script>
 </body>

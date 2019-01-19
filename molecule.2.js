@@ -381,7 +381,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
     let defaultPropsStmt = new AssignStmt(fullname + '.defaultProps', new ObjectLiteralExpr(defaultProps));
     uinit.children.push(defaultPropsStmt);
 
-    uinit.children.push(new (`Molecule.extends(${fullname})`));
+    uinit.children.push(new LineStmt(`Molecule.extends(${fullname});`));
 
     /* 
         attr syntax: [m-]attr[:n|s|o|b|d|x|e][/r]
@@ -427,9 +427,10 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
 
     function compileChildren(element, renderer, fullkey){
         let array = new ArrayLiteralExpr();
+        var keyId = 1;
         for(let child of Array.from(element.childNodes)){
             let props = {};
-            let tagName = child.tagName;
+            let tagName = child.tagName && child.tagName.toLowerCase();
             var key = null;
             if(child instanceof HTMLElement){
                 for(let cattr of child.attributes){
@@ -444,20 +445,61 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                         props[propName] = expr;
                     }
                 }
+                if(!key){
+                    key = 'key_' + (keyId++);
+                }
             } else if(child instanceof Text){
-                props.textContent = child.textContent;
-            }
-            if(!key){
-                props.key = key = randomKey();
+                if((child.nextSibling || !array.isEmpty()) && child.textContent.trim() == '') continue;  // ignore empty blank
+                key = 'key_' + (keyId++);
+                var embed = compileText(child, renderer, key);
+                if(embed){
+                    array.extends(embed);
+                    continue;
+                } else {
+                    tagName = 'string';
+                    props.textContent = child.textContent;
+                }
             }
             if(tagName == 'if'){
                 let funcName = 'if_' + fullkey + '_' + key;
                 renderer.children.push(compileIfFunction(element, key));
-                array.push(new ExpandIteratorFunctionCallExpr(funcName));
+                array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
             } else if (tagName == 'for'){
                 
             }
-            array.push(new ObjectLiteralExpr({$:tagName, props: props, children: compileChildren(child, renderer, fullkey + '_' + key)}));
+            let d = {$:tagName, key: key, props: props};
+            let childrenDeep = compileChildren(child, renderer, fullkey + '_' + key);
+            if(!childrenDeep.isEmpty()) d.children = childrenDeep;
+            array.push(new ObjectLiteralExpr(d));
+        }
+        return array;
+    }
+
+    function compileText(textNode, renderer, baseKey){
+        let text = textNode.textContent;
+        let pos = text.indexOf('{{');
+        if(pos == -1) return;
+        
+        var array = new ArrayLiteralExpr();
+        var end = 0;
+        var keyId = 1;
+        for(var start = pos;start != -1; start = text.indexOf('{{', end)){
+            var notCode = text.substring(end, start);
+            if(end != 0 || notCode.trim()){
+                var d = {$:'string', key: baseKey + '_' + (keyId++), props:{textContent: notCode}};
+                array.push(new ObjectLiteralExpr(d));
+            }
+            start += 2;
+            var end = text.indexOf('}}', start);  // TODO 还需要跳过 js 里的 {{}}
+            var code = text.substring(start, end);
+            var key = baseKey + '_' + (keyId++);
+            array.push(new ExpandIteratorExpr(new MethodInvokeExpr('this', 'wrapChildren', [new Expr(code), new LiteralExpr(key,'s')])));  // ...this.wrapChildren(expr, key)
+            end += 2;
+        }
+        var remain = text.substring(end);
+        if(remain.trim()){
+            var d = {$:'string', key: baseKey + '_' + (keyId++), props:{textContent: remain}};
+            array.push(new ObjectLiteralExpr(d));
         }
         return array;
     }

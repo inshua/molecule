@@ -20,45 +20,31 @@
     5. customer attr but like native, 'value' etc
 -->
 <body>
-    <!-- attr syntax: [m-]attr[:n|s|o|b|d|x|e][/r] -->
     <div id="test" attr="a" attr2:n="2" attr3:b="false" attr4:d="2018-01-20" 
             attr5:o="{name:'jack',gender:'M'}"
-            attr6:x="1 + 2" 
+            attr6:x:r:e="1 + 2" 
             >
-        DIV1
+        <h1>
+            Hello World
+        </h1>
+        <h2>this my first vdom page</h2>
+        enjoy it!
     </div>
-    <!--onclick:e="this.handleClick"-->
-
-    <!--
-    
-    -->
-    <div id="test2" attr:r="a" attr2:n:r="2" attr3:b:r="false" attr4:d:r="2018-01-20" draggable:b:r="true"
-            attr5:o:r="{name:'jack',gender:'M'}"
-            attr6:x:r="1 + 2" 
-            onclick:e:r="this.handleClick"
-            ontest:e="this.test"
-            aria-readonly:b:r="true"
-            title="test title"
-            value="value not belong to div"
-            >
-        DIV2
-    </div>
-
 
     <div id="test3">
-        DIV3
     </div>
 
     <script>
         (async function () {
             var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
-            console.log(code);
+            // console.log(code);
             // var code = await Molecule.compileDefine(document.getElementById('test2'), 'Test');
-            // var script = document.createElement('script');
-            // script.innerHTML = code;
-            // document.head.appendChild(script);
             
-            // new Test(document.getElementById('test3'))
+            var script = document.createElement('script');
+            script.innerHTML = code;
+            document.head.appendChild(script);
+            
+            new Test(document.getElementById('test3'), {p1:'jack'})
 
             //Molecule.compileDefine(document.getElementById('test2'), 'Test');    
 

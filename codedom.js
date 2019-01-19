@@ -39,6 +39,17 @@ class Expr extends Statement{
     }
 }
 
+class ExpressionStmt extends Statement{
+    constructor(expr){
+        super();
+        this.expr = expr;
+    }
+
+    toCode(indent){
+        return `${this.indent(indent)}${this.expr.toCode(indent)};`
+    }
+}
+
 class LiteralExpr extends Expr{     // const value
     constructor(value, type){
         super()
@@ -79,12 +90,12 @@ class ObjectLiteralExpr extends Expr{
         this.define = define;
     }
     toCode(indent){
-        var s = this.indent(indent) + '{\n';
+        var s = '{\n';
         for(let k in this.define){
             let expr = this.define[k];
             var exprCode = '';
             if(expr instanceof Expr){
-                exprCode = expr.toCode(expr instanceof FunctionDecl ? indent : 0);
+                exprCode = expr.toCode(indent + 3);
             } else{
                 exprCode = JSON.stringify(expr);
             } 
@@ -104,7 +115,7 @@ class AssignStmt extends Statement{
     }
     
     toCode(indent){
-        return this.indent(indent) + this.left + ' = ' + this.right.toCode(0) + ';';
+        return this.indent(indent) + this.left + ' = ' + this.right.toCode(indent) + ';';
     }
 }
 
@@ -120,7 +131,7 @@ class ClassDecl extends Expr{
     }
 }
 
-class FunctionDecl extends Expr{
+class FunctionDeclStmt extends Statement{
     constructor(name, args){
         super()
         this.name = name || '';
@@ -132,8 +143,26 @@ class FunctionDecl extends Expr{
     }
 }
 
-FunctionDecl.fromStatements = function(name, statements){
-    let r = new FunctionDecl(name);
+FunctionDeclStmt.fromStatements = function(name, statements){
+    let r = new FunctionDeclStmt(name);
+    r.children = statements;
+    return r;
+}
+
+class FunctionDeclExpr extends Expr{
+    constructor(name, args){
+        super()
+        this.name = name || '';
+        this.args = args || '';
+    }
+
+    toCode(indent){
+        return `function ${name}(${this.args}) {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
+    }
+}
+
+FunctionDeclExpr.fromStatements = function(name, statements){
+    let r = new FunctionDeclExpr(name);
     r.children = statements;
     return r;
 }
@@ -182,9 +211,9 @@ class PropAssignExprStmt extends Statement{
     toCode(indent){
         if(this.isCustomProp){
             //return `${this.indent(indent)}${this.elementName}.setAttribute(${JSON.stringify(this.propName)}, ${this.expr.toCode()});`
-            return `${this.indent(indent)}this.prop(${JSON.stringify(this.propName)}, ${this.expr.toCode()});`
+            return `${this.indent(indent)}this.prop(${JSON.stringify(this.propName)}, ${this.expr.toCode(indent)});`
         } else {
-            return `${this.indent(indent)}${this.elementName}.${this.propName} = ${this.expr.toCode()};`
+            return `${this.indent(indent)}${this.elementName}.${this.propName} = ${this.expr.toCode(indent)};`
         }
     }
 }
@@ -200,9 +229,9 @@ class AttachEventExprStmt extends Statement{
 
     toCode(indent){
         if(! this.isCustomProp){            
-            return `${this.indent(indent)}${this.elementName}.addEventListener(${JSON.stringify(this.propName)}, ${this.expr.toCode()});`
+            return `${this.indent(indent)}${this.elementName}.addEventListener(${JSON.stringify(this.propName)}, ${this.expr.toCode(indent)});`
         } else {        // TODO
-            return `${this.indent(indent)}jQuery(${this.elementName}).on(${JSON.stringify(this.propName)}, ${this.expr.toCode()});`
+            return `${this.indent(indent)}jQuery(${this.elementName}).on(${JSON.stringify(this.propName)}, ${this.expr.toCode(indent)});`
         }
     }
 }
@@ -215,11 +244,11 @@ class VarDeclStmt extends Statement{
     }
 
     toCode(indent){
-        return `${this.indent(indent)}var ${this.name} = ${this.initExpr.toCode(0)}`
+        return `${this.indent(indent)}var ${this.name} = ${this.initExpr.toCode(indent)}`
     }
 }
 
-class MethodInvokeStmt extends Statement{
+class MethodInvokeExpr extends Expr{
     constructor(instance, methodName, args ){
         super()
         this.instance = instance;
@@ -228,11 +257,53 @@ class MethodInvokeStmt extends Statement{
     }
 
     toCode(indent){
-        let s = instance instanceof Expr ? instance.toCode(0) : instance;
-        return `${this.indent(indent)}${s}(${args.map(a => a instanceof Expr ? a.toCode() : JSON.stringify(a)).join()})`
+        let s = this.instance instanceof Expr ? this.instance.toCode(indent) : this.instance;
+        if(this.args instanceof ArrayLiteralExpr){
+            return `${s}.${this.methodName}(${this.args.toCode(indent)})`
+        } else {
+            return `${s}.${this.methodName}(${this.args.map(a => a instanceof Expr ? a.toCode(indent) : JSON.stringify(a)).join()})`;
+        }
     }
 }
 
+class MethodInvokeStmt extends ExpressionStmt{
+    constructor(instance, methodName, args ){
+        super(new MethodInvokeExpr(instance, methodName, args));
+    }
+}
+
+class FunctionInvokeExpr extends Expr{
+    constructor(fun, args){
+        super()
+        this.fun = fun;
+        this.args = args;        
+    }
+
+    toCode(indent){
+        let s = this.fun instanceof Expr ? this.fun.toCode(indent) : this.fun;
+        if(this.args instanceof ArrayLiteralExpr){
+            return `${s}(${this.args.toCode(indent)})`
+        } else {
+            return `${s}(${this.args.map(a => a instanceof Expr ? a.toCode(indent) : JSON.stringify(a)).join()})`;
+        }
+    }
+}
+
+class FunctionInvokeStmt extends ExpressionStmt{
+    constructor(fun, args){
+        super(new FunctionDeclExpr(fun, args))
+    }
+}
+
+class QuoteExpr extends Expr{
+    constructor(expr){
+        super();
+        this.expr = expr;
+    }
+    toCode(indent){
+        return `(${this.expr.toCode(indent)})`
+    }
+}
 
 class ReturnStmt extends Statement{
     constructor(expr){
@@ -241,7 +312,7 @@ class ReturnStmt extends Statement{
     }
 
     toCode(indent){
-        return `${this.indent(indent)}return ${this.expr.toCode(0)};`
+        return `${this.indent(indent)}return ${this.expr.toCode(indent)};`
     }
 }
 
@@ -249,11 +320,11 @@ class NewInstanceExpr extends Expr{
     constructor(className, constructArgs){
         super();
         this.className = className;
-        this.arguments = constructArgs;
+        this.constructArgs = constructArgs;
     }
 
     toCode(indent){
-        return `new ${this.className}(${constructArgs.map(a => a instanceof Expr ? a.toCode() : JSON.stringify(a)).join()});`
+        return `new ${this.className}(${this.constructArgs.map(a => a instanceof Expr ? a.toCode(indent) : JSON.stringify(a)).join()})`
     }
 }
 
@@ -261,9 +332,9 @@ class DefaultPropExpr extends NewInstanceExpr{
     // constructor(expression, type, isRuntime, isNative, echo)
     constructor(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr){
         if(isExpr){
-            expr = FunctionDecl.fromStatements('',[new ReturnStmt(expr)])
+            expr = FunctionDeclExpr.fromStatements('',[new ReturnStmt(expr)])
         }
-        super('Prop', expr,  type, isRuntime, !isCustomProp, isEcho);
+        super('Prop', [expr,  type, isRuntime ? true : false, (!isCustomProp) ? true : false, isEcho?true:false]);
     }
 }
 
@@ -277,18 +348,32 @@ class ArrayLiteralExpr extends Expr{
         this.array.push(element);
     }
 
+    isEmpty(){
+        return this.array.length == 0
+    }
+
+    extends(anotherArray){
+        if(anotherArray instanceof ArrayLiteralExpr){
+            Array.prototype.push.apply(this.array, anotherArray.array); 
+        } else if(Array.isArray(anotherArray)){
+            Array.prototype.push.apply(this.array, anotherArray);
+        } else {
+            throw new Error('type mismatch');
+        }
+    }
+
     toCode(indent){
-        return `[${this.array.map(a => a instanceof Expr ? a.toCode() : JSON.stringify(a)).join()}]`;
+        return `[${this.array.map(a => a instanceof Expr ? a.toCode(indent) : JSON.stringify(a)).join()}]`;
     }
 }
 
-class ExpandIteratorFunctionCallExpr extends Expr{
+class ExpandIteratorExpr extends Expr{
     constructor(expr){
         super();
         this.expr = expr;
     }
 
-    toCode(){
-        return '...' + this.expr instanceof Expr ? this.expr.toCode() : JSON.stringify(this.expr);
+    toCode(indent){
+        return '... ' + (this.expr instanceof Expr ? this.expr.toCode(indent) : JSON.stringify(this.expr));
     }
 }
