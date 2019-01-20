@@ -360,7 +360,7 @@ function camelCaseToDash( myStr ) {
 
 
 Molecule.compileDefine = async function(prototypeElement, fullname){
-    const attrReg = /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|evt])?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/;
+    const attrReg = /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:([s|n|b|d|o]|evt))?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/;
 
     let uinit = new Unit();
     let c = new ClassDecl(fullname, prototypeElement.extends || 'Molecule')
@@ -373,7 +373,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
     for(let attr of prototypeElement.attributes){
         var value = attr.value;
         var [propName, attrName, type, isCustomProp, isExpr, isRuntime, isEcho] = parseAttributeName(prototypeElement, attr.name);
-        var expr = parseAttributeValue(value, type, isExpr) 
+        var expr = parseAttributeValue(value, type, isExpr, false) 
         defaultProps[propName] = new DefaultPropExpr(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr);
     }
     renderer.children.push(new MethodInvokeStmt('this', 'assignChildren', compileChildren(prototypeElement, renderer)));
@@ -393,14 +393,10 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         var propName = null;
         if(type == ':evt'){            
             isCustomProp = !(name in element);
-            if(name.startsWith('on')) {
-                propName = name.substr(2);
-            } else{
-                propName = name;
-            }
+            propName = name;
         } else if(name.startsWith('on') && type == null) {
             type = ':evt';
-            propName = name.substr(2);
+            propName = name;
         } else {
             let desc = HTML_ATTRS.ofAttr[name];            
             if(desc != null) var propName = desc.prop;
@@ -413,13 +409,29 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         let isCustomAttr = HTML_ATTRS.isCustomAttr(name, element.tagName);
         attrName = isCustomAttr ? name + (type||'') : name;
         type = type ? type.substr(1) : 's';
-        if(type == 'evt') isExpr = true;
         return [propName, attrName, type, isCustomProp, isExpr && true, isRuntime && true, isEcho && true];
     }
 
-    function parseAttributeValue(value, type, isExpr){
+    function parseAttributeValue(value, type, isExpr, isInstancing){
+        if(type == 'evt'){
+            if(isExpr){
+                if(!isInstancing){
+                    let fun = new FunctionDeclExpr.fromStatements('', [new ReturnStmt(new Expr(value))]);
+                    return new NewInstanceExpr('Molecule.EventHandlerProvider', [fun]);
+                } else {
+                    return new Expr(value);
+                }
+            } else {
+                let fun = FunctionDeclExpr.fromStatements('', [new LineStmt(value)]);
+                //return new MethodInvokeExpr(new BracketExpr(fun), 'bind', [new Expr('this')]);
+                return fun;
+            }
+        }
         if(isExpr){     // expr
-            return new Expr(value);
+            if(isInstancing)
+                return new Expr(value);
+            else
+                expr = FunctionDeclExpr.fromStatements('',[new ReturnStmt(new Expr(value))])
         } else {
             return new LiteralExpr(Molecule.castType(value, type), type);
         }
@@ -438,7 +450,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                     let [propName, attrName, type, isCustomProp, isExpr, isRuntime, isEcho] = parseAttributeName(element, cattr.name);
                     if(isRuntime) throw ':r(untime) option can only appear within molecule define';
                     if(isEcho) throw ':e(cho) option can only appear within molecule define';
-                    var expr = parseAttributeValue(value, type);
+                    var expr = parseAttributeValue(value, type, isExpr, true);
                     if(propName == 'key'){
                         key = expr;
                     } else {
@@ -467,7 +479,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             } else if (tagName == 'for'){
                 
             }
-            let d = {$:tagName, key: key, props: props};
+            let d = {$:tagName, key: key, props: new ObjectLiteralExpr(props)};
             let childrenDeep = compileChildren(child, renderer, fullkey + '_' + key);
             if(!childrenDeep.isEmpty()) d.children = childrenDeep;
             array.push(new ObjectLiteralExpr(d));

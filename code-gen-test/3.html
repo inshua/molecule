@@ -13,18 +13,15 @@
     <script src="../molecule.2.js"></script>
 </head>
 <!--
-    {{expression}}
+    nested
 -->
 <body>
-    <div id="test" attr="a" attr2:n="2" attr3:b="false" attr4:d="2018-01-20" 
-            attr5:o="{name:'jack',gender:'M'}"
-            attr6:x:r:e="1 + 2" 
-            >
-        <h1>
-            {{this.props.title}}
-        </h1>
-        <h2>this my first vdom page</h2>
-        enjoy it! {{this.props.p1}} {{new Date().toISOString()}}
+    <div id="test">
+        <div>A
+            <div>B
+                <div>C</div>
+            </div>
+        </div>
     </div>
 
     <div id="test3">
@@ -33,14 +30,18 @@
     <script>
         (async function () {
             var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
+            // console.log(code);
+            // var code = await Molecule.compileDefine(document.getElementById('test2'), 'Test');
             
             var script = document.createElement('script');
             script.innerHTML = code;
             document.head.appendChild(script);
             
-            let m = new Test(document.getElementById('test3'), {title:'It works!',p1:'jack'})
+            new Test(document.getElementById('test3'), {p1:'jack'})
 
-            //setInterval(()=> m.render(), 100);
+            //Molecule.compileDefine(document.getElementById('test2'), 'Test');    
+
+            
         })();
     </script>
 </body>

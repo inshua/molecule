@@ -396,3 +396,79 @@ module.exports = render;
 4. 是一个数组，其元素是 2。似乎只要继续 assignChildren 即可。
 5. 是一个数组，其元素是 1。应作为 1 处理。转为文字即可。
 6. 是一个数组，其元素是 3。处理方式类似。
+
+##event 的处理
+
+在书写形式上，event 支持以下几种挂载
+
+prop name 方面，支持:
+
+1. onxxx
+1. onxxx:evt
+1. onxxx:evt:x
+
+在值方面支持：
+
+1. ="alert(this.props.name)"
+2. ="this.handleClick"
+
+值的书写方法中，法1是直接提供表达式，该表达式应包装为函数，形如：
+
+```js
+M.defaultProps = {
+    click: function(){alert(this.props.name)},
+}
+new M(el, {click: function(){alert(this.props.name}})   // for instance
+```
+
+法2提供的是函数，应包装为：
+
+```js
+M.defaultProps = {
+    click: function(){return this.handler}
+}
+new M(el, click: this.handler)   // for instance
+```
+
+写法1定义和实例化生成的代码是一致的，写法2不一致，写法2可以认为是一种特例。按写法2提供的表达式在 m-def 中的应包装为一个 Provider，在实例化时却直接使用。写法1是惯例写法，可将写法2包装为 :x。
+
+这也就是说：
+```html
+<div m-def=M click:evt:x="this.handleClick"></div>
+```
+转为
+```js
+M.defaultProps = {
+    click: new EventHandlerProvider(this.handler)
+}
+```
+需要在 init 时提取 handler。
+
+而
+```html
+<div m=M click:evt:x="this.handleClick"></div>
+```
+转为
+```js
+new M(el, {click:this.handleClick})
+```
+
+写法一
+```html
+<div m-def=M click:evt="alert(this.props.name)"></div>
+```
+转为
+```js
+M.defaultProps = {
+    click: function(){alert(this.props.name)}
+}
+```
+
+```html
+<div m=M click:evt="alert(this.props.name)"></div>
+```
+转为
+```js
+new M(el, {click:function(){alert(this.props.name)}})
+```
+

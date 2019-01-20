@@ -170,8 +170,8 @@ FunctionDeclExpr.fromStatements = function(name, statements){
 class MethodDecl extends Statement{
     constructor(name, args){
         super()
-        this.name = name;
-        this.args = args;
+        this.name = name || '';
+        this.args = args || '';
     }
 
     toCode(indent){
@@ -295,7 +295,7 @@ class FunctionInvokeStmt extends ExpressionStmt{
     }
 }
 
-class QuoteExpr extends Expr{
+class BracketExpr extends Expr{
     constructor(expr){
         super();
         this.expr = expr;
@@ -331,9 +331,6 @@ class NewInstanceExpr extends Expr{
 class DefaultPropExpr extends NewInstanceExpr{
     // constructor(expression, type, isRuntime, isNative, echo)
     constructor(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr){
-        if(isExpr){
-            expr = FunctionDeclExpr.fromStatements('',[new ReturnStmt(expr)])
-        }
         super('Prop', [expr,  type, isRuntime ? true : false, (!isCustomProp) ? true : false, isEcho?true:false]);
     }
 }

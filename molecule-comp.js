@@ -36,20 +36,24 @@ class Molecule {
     initProps(instanceProps){
         this.runtimeProps = {};
         let def = this.constructor.__defaultProps__ || {};
-        for(let k of Object.keys(def)){
-            var prop = def[k];
-            if(k in instanceProps){     // instance props only give literal value, not Prop object
-                prop = prop.replaceExpr(instanceProps[k])
+        for(let propName of Object.keys(def)){
+            var prop = def[propName];
+            if(propName in instanceProps){     // instance props only give literal value, not Prop object
+                prop = prop.replaceExpr(instanceProps[propName])
             }
             if(prop.isRuntime){
-                this.runtimeProps[k] = prop;
+                this.runtimeProps[propName] = prop;
             }
             if(prop.type == 'evt'){
-                let fun = prop.getValue(this).bind(this);
-                this.element.addEventListener(k, fun);
-                this.props[k] = fun;
+                let fun = prop.getValue(this);
+                if(prop.isNative){
+                    this.element.addEventListener(propName.substr(2), fun);
+                } else {
+                    jQuery(this.element).on(propName, fun);
+                }
+                this.props[propName] = fun;
             } else {
-                this.props[k] = prop.getValue(this);
+                this.props[propName] = prop.getValue(this);
             }
         }
         for(let k in instanceProps){
@@ -71,7 +75,7 @@ class Molecule {
         for(let k of Object.keys(this.runtimeProps)){
             let v = this.runtimeProps[k].getValue(this);
             this.prop(k, v);
-        }        
+        }
     }
 
     render(){
@@ -113,14 +117,22 @@ class Molecule {
         var echo = prop && prop.echo;
         if(propName in this.element){     // related attribute of native prop will auto change, if native prop hasnt attr the prop just set to dom element
             if(prop && prop.type == 'evt'){
-                this.element.removeEventListener(propName, oldValue);  // TODO 应准确移除上次绑定的函数
-                let fun = prop.getValue(this).bind(this);
-                this.element.addEventListener(propName, fun);
-                this.props[propName] = fun;
-            } else{
+                let eventName = propName.substr(2);
+                this.element.removeEventListener(eventName, oldValue);  // TODO 应准确移除上次绑定的函数
+                this.element.addEventListener(eventName, value);
+            } else if(propName.startsWith('on')){
+                // let me = this;
+                // this.element[propName] = function(){ debugger; value.call(me, this)};
+                this.element[propName] = value;
+            } else {
                 this.element[propName] = value;
             }
         } else {        // not native property
+            if(prop && prop.type == 'evt'){
+                let eventName = propName.substr(2);
+                jQuery(this.element).off(eventName, oldValue).on(eventName, value);
+                this.props[propName] = value;
+            }
             // HTML_ATTRS.isCustomProp(propName, this.element.tagName)
         }
         if(echo){
@@ -362,6 +374,17 @@ class ExpressionProperty{
     }
 }
 
+Molecule.EventHandlerProvider = class{
+    constructor(handler){
+        this.handler = handler;
+    }
+    getHandler(instance){
+        let h = this.handler.call(instance);
+        return h && h.bind(instance);
+    }
+}
+
+// property define
 class Prop{
     // /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|evt])?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/
     constructor(expression, type, isRuntime, isNative, echo){
@@ -375,8 +398,11 @@ class Prop{
         this.echo = echo && true;       // default false
     }
     getValue(_this){
-        if(this.type == 'evt'){
-            return Molecule.castType(this.expression, this.type);
+        if(this.type == 'evt'){     // this.expression will be a function to return function, function(){return this.handleClick} etc
+            if(this.expression instanceof Molecule.EventHandlerProvider)
+                return this.expression.getHandler(_this)
+            else
+                return this.expression.bind(_this);
         } else {
             let r = this.expression instanceof Function ? this.expression.call(_this) : this.expression;        //TODO 这里用 this 未必恰当，可能需要用 this.container，子元素如何获得父元素的属性呢
             return Molecule.castType(r, this.type);
