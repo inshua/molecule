@@ -461,7 +461,8 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                     key = 'key_' + (keyId++);
                 }
             } else if(child instanceof Text){
-                if((child.nextSibling || !array.isEmpty()) && child.textContent.trim() == '') continue;  // ignore empty blank
+                // TODO 有时需要文本隔开，如两个按钮
+                //if((child.nextSibling || !array.isEmpty()) && child.textContent.trim() == '') continue;  // ignore empty blank
                 key = 'key_' + (keyId++);
                 var embed = compileText(child, renderer, key);
                 if(embed){
