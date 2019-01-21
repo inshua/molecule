@@ -376,7 +376,9 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         var expr = parseAttributeValue(value, type, isExpr, false) 
         defaultProps[propName] = new DefaultPropExpr(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr);
     }
-    renderer.children.push(new MethodInvokeStmt('this', 'assignChildren', compileChildren(prototypeElement, renderer)));
+    if(!soloTextNode(prototypeElement, defaultProps)){
+        renderer.children.push(new MethodInvokeStmt('this', 'assignChildren', compileChildren(prototypeElement, renderer)));
+    }
 
     let defaultPropsStmt = new AssignStmt(fullname + '.defaultProps', new ObjectLiteralExpr(defaultProps));
     uinit.children.push(defaultPropsStmt);
@@ -437,10 +439,23 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         }
     }
 
+    function soloTextNode(el, props){
+        if(el.childNodes.length == 1 && el.firstChild instanceof Text){
+            let s = el.firstChild.textContent;
+            if(s.indexOf('{{') != -1 && s.indexOf('}}') != -1){
+                // 
+            } else {
+                props['innerHTML'] = s;
+                return true;
+            }
+        }
+    }
+
     function compileChildren(element, renderer, fullkey){
         let array = new ArrayLiteralExpr();
         var keyId = 1;
-        for(let child of Array.from(element.childNodes)){
+        let children = Array.from(element.childNodes);
+        for(let child of children){
             let props = {};
             let tagName = child.tagName && child.tagName.toLowerCase();
             var key = null;
@@ -463,7 +478,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             } else if(child instanceof Text){
                 // TODO 有时需要文本隔开，如两个按钮
                 //if((child.nextSibling || !array.isEmpty()) && child.textContent.trim() == '') continue;  // ignore empty blank
-                key = 'key_' + (keyId++);
+                key = 'key_' + (keyId++);                
                 var embed = compileText(child, renderer, key);
                 if(embed){
                     array.extends(embed);
@@ -481,8 +496,10 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                 
             }
             let d = {$:tagName, key: key, props: new ObjectLiteralExpr(props)};
-            let childrenDeep = compileChildren(child, renderer, fullkey + '_' + key);
-            if(!childrenDeep.isEmpty()) d.children = childrenDeep;
+            if(!soloTextNode(child, props)){
+                let childrenDeep = compileChildren(child, renderer, fullkey + '_' + key);
+                if(!childrenDeep.isEmpty()) d.children = childrenDeep;
+            }
             array.push(new ObjectLiteralExpr(d));
         }
         return array;
