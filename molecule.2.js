@@ -377,7 +377,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         defaultProps[propName] = new DefaultPropExpr(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr);
     }
     if(!soloTextNode(prototypeElement, defaultProps)){
-        renderer.children.push(new MethodInvokeStmt('this', 'assignChildren', compileChildren(prototypeElement, renderer)));
+        renderer.children.push(new MethodInvokeStmt('this', 'assignChildren', compileChildren(Array.from(prototypeElement.childNodes), renderer)));
     }
 
     let defaultPropsStmt = new AssignStmt(fullname + '.defaultProps', new ObjectLiteralExpr(defaultProps));
@@ -424,16 +424,24 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                     return new Expr(value);
                 }
             } else {
-                let fun = FunctionDeclExpr.fromStatements('', [new LineStmt(value)]);
-                //return new MethodInvokeExpr(new BracketExpr(fun), 'bind', [new Expr('this')]);
-                return fun;
+                if(!isInstancing){
+                    let fun = FunctionDeclExpr.fromStatements('', [new LineStmt(value)]);
+                    return fun;
+                } else {
+                    /*
+                        button.click = this.wrapHandler(function(target){<<code>>})    // `this` means molecule of renderDOM, in the <<code>> `target` means element
+                    */
+                    let fun = new FunctionDeclExpr('', ['target']);
+                    fun.children = [new LineStmt(value)];
+                    return new MethodInvokeExpr('this', 'wrapHandler', [fun]);
+                }
             }
         }
         if(isExpr){     // expr
             if(isInstancing)
                 return new Expr(value);
             else
-                expr = FunctionDeclExpr.fromStatements('',[new ReturnStmt(new Expr(value))])
+                return FunctionDeclExpr.fromStatements('',[new ReturnStmt(new Expr(value))])
         } else {
             return new LiteralExpr(Molecule.castType(value, type), type);
         }
@@ -451,10 +459,9 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         }
     }
 
-    function compileChildren(element, renderer, fullkey){
+    function compileChildren(children, renderer, fullkey = '', startKey = 1){
         let array = new ArrayLiteralExpr();
-        var keyId = 1;
-        let children = Array.from(element.childNodes);
+        var keyId = startKey;
         for(let child of children){
             let props = {};
             let tagName = child.tagName && child.tagName.toLowerCase();
@@ -462,7 +469,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             if(child instanceof HTMLElement){
                 for(let cattr of child.attributes){
                     let value = cattr.value;
-                    let [propName, attrName, type, isCustomProp, isExpr, isRuntime, isEcho] = parseAttributeName(element, cattr.name);
+                    let [propName, attrName, type, isCustomProp, isExpr, isRuntime, isEcho] = parseAttributeName(child, cattr.name);
                     if(isRuntime) throw ':r(untime) option can only appear within molecule define';
                     if(isEcho) throw ':e(cho) option can only appear within molecule define';
                     var expr = parseAttributeValue(value, type, isExpr, true);
@@ -488,16 +495,19 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                     props.textContent = child.textContent;
                 }
             }
+
             if(tagName == 'if'){
                 let funcName = 'if_' + fullkey + '_' + key;
-                renderer.children.push(compileIfFunction(element, key));
+                renderer.children.push(compileIfFunction(child, funcName, renderer, keyId));
                 array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
+                continue;
             } else if (tagName == 'for'){
                 
             }
+            
             let d = {$:tagName, key: key, props: new ObjectLiteralExpr(props)};
             if(!soloTextNode(child, props)){
-                let childrenDeep = compileChildren(child, renderer, fullkey + '_' + key);
+                let childrenDeep = compileChildren(Array.from(child.childNodes), renderer, fullkey + '_' + key);
                 if(!childrenDeep.isEmpty()) d.children = childrenDeep;
             }
             array.push(new ObjectLiteralExpr(d));
@@ -532,6 +542,35 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             array.push(new ObjectLiteralExpr(d));
         }
         return array;
+    }
+
+    function compileIfFunction(ifElement, funcName, renderer, keyId){
+        let branches = [];
+        let cond = new Expr(ifElement.getAttribute('cond'));
+        let branch = {cond: cond, then: []}
+        branches.push(branch);
+        for(let then = ifElement.firstChild; then != null; then = then.nextSibling){
+            if(then.tagName == 'ELSE'){
+                let elseEl = then;
+                let cond = elseEl.getAttribute('cond')
+                let elseBranch = {cond: cond ? new Expr(cond) : null, then:[]}                    
+                for(let elseEl = then.firstChild; elseEl != null; elseEl = elseEl.nextSibling){
+                    elseBranch.then.push(elseEl);
+                }
+                branches.push(elseBranch);
+            } else {
+                branch.then.push(then);
+            }
+        }
+        for(let branch of branches){
+            let c = branch.then.length;
+            branch.then = [new ReturnStmt(compileChildren(branch.then, renderer, funcName, keyId))];
+            keyId += c;
+        }
+
+        let stmt = new IfStmt(branches);
+        let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(null, [stmt])));
+        renderer.children.push(fun);
     }
 
     let code = uinit.toCode(0);

@@ -13,7 +13,7 @@
     <script src="../molecule.2.js"></script>
 </head>
 <!--
-    {{expression}}
+    if logic tag
 -->
 <body>
     <div id="test" attr="a" attr2:n="2" attr3:b="false" attr4:d="2018-01-20" 
@@ -21,10 +21,19 @@
             attr6:x:r:e="1 + 2" 
             >
         <h1>
-            {{this.props.title}}
+            Welcome to my home
         </h1>
-        <h2>this my first vdom page</h2>
-        enjoy it! {{this.props.p1}} {{new Date().toISOString()}}
+        <label>select your gender</label>
+            <select onchange="this.prop('gender', target.value).render()">
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+            </select>
+        <if cond="this.props.gender=='M'">
+            <img width="48" src="https://cdn0.iconfinder.com/data/icons/avatars-6/500/Avatar_boy_man_people_account_client_male_person_user_work_sport_beard_team_glasses-512.png">
+            <else>
+                <img width="48" src="https://cdn0.iconfinder.com/data/icons/avatars-6/500/Avatar_account_client_male_person_user_beautiful_girl_woman_business_female_housewife_4-512.png">
+            </else>
+        </if>
     </div>
 
     <div id="test3">
@@ -38,7 +47,7 @@
             script.innerHTML = code;
             document.head.appendChild(script);
             
-            let m = new Test(document.getElementById('test3'), {title:'It works!',p1:'jack'})
+            let m = new Test(document.getElementById('test3'), {gender:'M'});
 
             //setInterval(()=> m.render(), 100);
         })();

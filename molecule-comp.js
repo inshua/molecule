@@ -307,6 +307,13 @@ class Molecule {
             }
         }
     }
+
+    wrapHandler(handler){
+        let m = this;
+        return function(){
+            handler.call(m, this);
+        }
+    }
 }
 
 Molecule.__defaultProps__ = {}

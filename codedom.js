@@ -15,7 +15,7 @@ class Statement{
     childrenCode(indent){
         var result = '';
         for(let c of this.children){
-            result += c.toCode(indent + 1) + '\n'
+            if(c != null) result += c.toCode(indent + 1) + '\n'
         }
         return result;
     }
@@ -131,15 +131,9 @@ class ClassDecl extends Expr{
     }
 }
 
-class FunctionDeclStmt extends Statement{
+class FunctionDeclStmt extends ExpressionStmt{
     constructor(name, args){
-        super()
-        this.name = name || '';
-        this.args = args || '';
-    }
-
-    toCode(indent){
-        return `${this.indent(indent)}function ${name}(${this.args}) {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
+        super(new FunctionDeclExpr(name, args))
     }
 }
 
@@ -157,7 +151,7 @@ class FunctionDeclExpr extends Expr{
     }
 
     toCode(indent){
-        return `function ${name}(${this.args}) {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
+        return `function ${this.name}(${this.args}) {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
     }
 }
 
@@ -372,5 +366,57 @@ class ExpandIteratorExpr extends Expr{
 
     toCode(indent){
         return '... ' + (this.expr instanceof Expr ? this.expr.toCode(indent) : JSON.stringify(this.expr));
+    }
+}
+
+class IfStmt extends Statement{
+
+    constructor(branches){
+        super();
+        this.branches = branches;
+    }
+
+    toCode(indent){
+        var s = ''
+        var inIf = true;
+        for (const branch of this.branches) {
+            if(inIf){
+                s += `${this.indent(indent)}if(${branch.cond.toCode(indent)}){\n`;
+                inIf = false;
+            } else if(branch.cond) {
+                s += ` else if(${branch.cond.toCode(indent)}){\n`;
+            }  else {
+                s += ` else {\n`;
+            }
+            for(let stmt of branch.then){
+                s += stmt.toCode(indent + 1) + '\n';
+            }
+            s += `${this.indent(indent)}}`
+        }
+        return s + '\n';
+    }
+}
+
+class ConstDeclStmt extends Statement{
+    constructor(name, initExpr){
+        super()
+        this.name = name;
+        this.initExpr = initExpr;        
+    }
+
+    toCode(indent){
+        return `${this.indent(indent)}const ${this.name} = ${this.initExpr.toCode(indent)};`
+    }
+}
+
+class LambdaExpr extends Expr{
+    constructor(args, statements){
+        super()
+        this.args = args || '';
+        this.children = statements;
+    }
+
+    toCode(indent){
+        return `(${this.args}) => {\n${this.childrenCode(indent)}${this.indent(indent)}}`;
     }
 }

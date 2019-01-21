@@ -20,7 +20,7 @@
     <div id="test" onmousemove:evt:x:r="this.handleMove" 
                     onmouseout:evt="this.element.style.fontSize = ''">
         it's very powerful
-        <button onclick="alert('hello world')">simple handler</button>
+        <button onclick="alert('hello world, ' + this.props.p1 + 'u clicked ' + target.textContent)">simple handler</button>
         <button onclick:x="this.handleClick">expression handler</button>
     </div>
 
