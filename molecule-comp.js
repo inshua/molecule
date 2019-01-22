@@ -9,7 +9,7 @@ const jsondiffp = jsondiffpatch.create({objectHash: function(obj, index) {return
 // jsondiffpatch.clone(obj)
 
 class Molecule {
-    constructor(element, props){
+    constructor(element, props, state){
         this.isMolecule = true;
 
         this.element = element;
@@ -18,7 +18,7 @@ class Molecule {
         this.props = {};
         this.initProps(props || {});
 
-        this.state = this.getInitialState();
+        this.state = Object.assign(this.getInitialState(), state);
 
         this.children = {};             // key - child      
         this.childrenKeys = [];         // 
@@ -145,6 +145,14 @@ class Molecule {
         if(props == null) return;
         for(var p of Object.getOwnPropertyNames(props)){
             this.prop(p, props[p], force);
+        }
+    }
+
+    setState(key, value){
+        let old = this.state[key];
+        if(old != value){
+            this.state[key] = value;
+            this.render();
         }
     }
 

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Test Code Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../jquery-3.2.1.js"></script>
+    <script src="../codedom.js"></script>
+    <script src="../html-attr.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jsondiffpatch/dist/jsondiffpatch.umd.min.js"></script>
+    <script src="../molecule-comp.js"></script>
+    <script src="../molecule.2.js"></script>
+    <style>
+        @keyframes my-animation {        
+            from {
+                opacity : 0;
+                left : -500px;
+            }
+            to {
+                opacity : 1;
+                left : 0;
+            }      
+        }
+
+        .stage {
+            position: relative;
+            animation: my-animation 1s ease;
+        }
+    </style>
+</head>
+<!--
+    switch logic tag
+-->
+<body>
+    <div id="test">
+        <h1>
+            Welcome to my home
+        </h1>
+        <label>select your gender</label>
+        <select onchange="this.setState('stage', target.value)">
+            <option value="ready">Ready</option>
+            <option value="running">Running</option>
+            <option value="done">Done</option>
+        </select>
+        <switch cond="this.state.stage">
+            <case value:s="ready">
+                <p class="stage">READY</p>
+            </case>
+            <case value:s="running">
+                <p class="stage">RUNNING....</p>
+            </case>
+            <case value:s="done">
+                <p class="stage">DONE</p>
+            </case>
+        </if>
+    </div>
+
+    <div id="test3">
+    </div>
+
+    <script>
+        (async function () {
+            var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
+            
+            var script = document.createElement('script');
+            script.innerHTML = code;
+            document.head.appendChild(script);
+            
+            let m = new Test(document.getElementById('test3'), null, {stage:'ready'});
+
+        })();
+    </script>
+</body>
+</html>

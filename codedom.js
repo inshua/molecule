@@ -464,3 +464,23 @@ class ConcatStringExpr extends Expr{
     }
 }
 
+class SwitchStmt extends Statement{
+
+    constructor(cond, branches){
+        super();
+        this.cond = cond;
+        this.branches = branches;
+    }
+
+    toCode(indent){
+        var s = `${this.indent(indent)}switch(${Expr.toCode(this.cond, indent)}){\n`
+        for (const branch of this.branches) {
+            s += `${this.indent(indent)}case ${Expr.toCode(branch.cond, indent)}:\n`;
+            for(let stmt of branch.then){
+                s += stmt.toCode(indent + 1) + '\n';
+            }
+            s += `${this.indent(indent + 1)}break;\n`;
+        }
+        return s + `${this.indent(indent)}}`;
+    }
+}

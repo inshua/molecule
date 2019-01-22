@@ -506,6 +506,11 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                 renderer.children.push(compileForLoopFunction(child, funcName, renderer, embedFunctionId));
                 array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
                 continue;
+            } else if(tagName == 'switch'){
+                let funcName = 'switch_' + (embedFunctionId.id ++);
+                renderer.children.push(compileSwitchFunction(child, funcName, renderer, embedFunctionId));
+                array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
+                continue;
             }
             
             let d = {$:tagName, key: key, props: new ObjectLiteralExpr(props)};
@@ -612,6 +617,38 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             forStmt = new ForLoopStmt(new Expr(forElement.getAttribute('init')), new Expr(forElement.getAttribute('cond')), new Expr(forElement.getAttribute('step')), [extendsChildren]);
         }
         let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(null, [result, forStmt, new ReturnStmt(new Expr('array'))])));
+        renderer.children.push(fun);
+    }
+
+    function compileSwitchFunction(switchElement, funcName, renderer, embedFunctionId){
+        let branches = [];
+        let cond = new Expr(switchElement.getAttribute('cond'));
+        for(let then = switchElement.firstChild; then != null; then = then.nextSibling){
+            if(then.tagName == 'CASE'){
+                let branchEl = then;
+                let props = {};
+                for(let cattr of branchEl.attributes){
+                    let value = cattr.value;
+                    let [propName, attrName, type, isCustomProp, isExpr, isRuntime, isEcho] = parseAttributeName(branchEl, cattr.name);
+                    let expr = parseAttributeValue(value, type, isExpr, true);
+                    props[propName] = expr;
+                }
+                let cond = props['value'];
+                let branch = {cond: cond, then:[]}                    
+                for(let branchDoEl = branchEl.firstChild; branchDoEl != null; branchDoEl = branchDoEl.nextSibling){
+                    branch.then.push(branchDoEl);
+                }
+                branches.push(branch);
+            }
+        }
+        var index = 0
+        for(let branch of branches){
+            index ++;
+            branch.then = [new ReturnStmt(compileChildren(branch.then, renderer, embedFunctionId, funcName + '_' + index))];
+        }
+
+        let stmt = new SwitchStmt(cond, branches);
+        let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(null, [stmt])));
         renderer.children.push(fun);
     }
 
