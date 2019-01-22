@@ -383,7 +383,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
     let defaultPropsStmt = new AssignStmt(fullname + '.defaultProps', new ObjectLiteralExpr(defaultProps));
     uinit.children.push(defaultPropsStmt);
 
-    uinit.children.push(new LineStmt(`Molecule.extends(${fullname});`));
+    uinit.children.push(new LineStmt(`Molecule.extends(${fullname})`));
 
     /* 
         attr syntax: [m-]attr[:n|s|o|b|d|x|e][/r]
@@ -459,9 +459,9 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         }
     }
 
-    function compileChildren(children, renderer, fullkey = '', startKey = 1){
+    function compileChildren(children, renderer, embedFunctionId={id:1}, prefix='key'){
         let array = new ArrayLiteralExpr();
-        var keyId = startKey;
+        var keyId = 1;
         for(let child of children){
             let props = {};
             let tagName = child.tagName && child.tagName.toLowerCase();
@@ -480,12 +480,12 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                     }
                 }
                 if(!key){
-                    key = 'key_' + (keyId++);
+                    key = new ConcatStringExpr(prefix, '_', keyId++);
                 }
             } else if(child instanceof Text){
                 // TODO 有时需要文本隔开，如两个按钮
-                //if((child.nextSibling || !array.isEmpty()) && child.textContent.trim() == '') continue;  // ignore empty blank
-                key = 'key_' + (keyId++);                
+                if((child.nextSibling || !array.isEmpty()) && child.textContent.trim() == '') continue;  // ignore empty blank
+                key = new ConcatStringExpr(prefix , '_', keyId++);
                 var embed = compileText(child, renderer, key);
                 if(embed){
                     array.extends(embed);
@@ -497,17 +497,20 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             }
 
             if(tagName == 'if'){
-                let funcName = 'if_' + fullkey + '_' + key;
-                renderer.children.push(compileIfFunction(child, funcName, renderer, keyId));
+                let funcName = 'if_' + (embedFunctionId.id ++);
+                renderer.children.push(compileIfFunction(child, funcName, renderer, embedFunctionId));
                 array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
                 continue;
             } else if (tagName == 'for'){
-                
+                let funcName = 'loop_' + (embedFunctionId.id ++);
+                renderer.children.push(compileForLoopFunction(child, funcName, renderer, embedFunctionId));
+                array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
+                continue;
             }
             
             let d = {$:tagName, key: key, props: new ObjectLiteralExpr(props)};
             if(!soloTextNode(child, props)){
-                let childrenDeep = compileChildren(Array.from(child.childNodes), renderer, fullkey + '_' + key);
+                let childrenDeep = compileChildren(Array.from(child.childNodes), renderer, embedFunctionId);
                 if(!childrenDeep.isEmpty()) d.children = childrenDeep;
             }
             array.push(new ObjectLiteralExpr(d));
@@ -526,25 +529,25 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         for(var start = pos;start != -1; start = text.indexOf('{{', end)){
             var notCode = text.substring(end, start);
             if(end != 0 || notCode.trim()){
-                var d = {$:'string', key: baseKey + '_' + (keyId++), props:{textContent: notCode}};
+                var d = {$:'string', key: baseKey.extends('_' , keyId++), props:{textContent: notCode}};
                 array.push(new ObjectLiteralExpr(d));
             }
             start += 2;
             var end = text.indexOf('}}', start);  // TODO 还需要跳过 js 里的 {{}}
             var code = text.substring(start, end);
-            var key = baseKey + '_' + (keyId++);
-            array.push(new ExpandIteratorExpr(new MethodInvokeExpr('this', 'wrapChildren', [new Expr(code), new LiteralExpr(key,'s')])));  // ...this.wrapChildren(expr, key)
+            var key = baseKey.extends('_' , keyId++);
+            array.push(new ExpandIteratorExpr(new MethodInvokeExpr('this', 'wrapChildren', [new Expr(code), key])));  // ...this.wrapChildren(expr, key)
             end += 2;
         }
         var remain = text.substring(end);
         if(remain.trim()){
-            var d = {$:'string', key: baseKey + '_' + (keyId++), props:{textContent: remain}};
+            var d = {$:'string', key: baseKey.extends('_' , keyId++), props:{textContent: remain}};
             array.push(new ObjectLiteralExpr(d));
         }
         return array;
     }
 
-    function compileIfFunction(ifElement, funcName, renderer, keyId){
+    function compileIfFunction(ifElement, funcName, renderer, embedFunctionId){
         let branches = [];
         let cond = new Expr(ifElement.getAttribute('cond'));
         let branch = {cond: cond, then: []}
@@ -562,14 +565,53 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                 branch.then.push(then);
             }
         }
+        var index = 0
         for(let branch of branches){
-            let c = branch.then.length;
-            branch.then = [new ReturnStmt(compileChildren(branch.then, renderer, funcName, keyId))];
-            keyId += c;
+            index ++;
+            branch.then = [new ReturnStmt(compileChildren(branch.then, renderer, embedFunctionId, funcName + '_' + index))];
         }
 
         let stmt = new IfStmt(branches);
         let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(null, [stmt])));
+        renderer.children.push(fun);
+    }
+
+    function compileForLoopFunction(forElement, funcName, renderer, embedFunctionId){
+        /*
+            <for it='' over='' [key='']></for>
+            <for var='' from='' to='' step='' [key='']></for>
+            <for init='' cond='' step='' key=''></for>
+         */
+        let result = new VarDeclStmt('array', new Expr('[]'));
+        var forStmt = null;
+
+        var iterator = null, container = null, keyExpr = null;
+        if(forElement.hasAttribute('key')){
+            keyExpr = new Expr(forElement.getAttribute('key'));
+        }
+        let varName = forElement.getAttribute('var');
+        if(varName){
+            iterator = new Expr(varName);
+            container = new MethodInvokeExpr('this', 'range', [new Expr(forElement.getAttribute('from')), new Expr(forElement.getAttribute('to')), new Expr(forElement.getAttribute('step'))]);
+        }
+        if(!iterator){
+            iterator = forElement.getAttribute('it');
+            if(iterator){
+                iterator = new Expr(iterator);
+                container = new Expr(forElement.getAttribute('over'));
+            }
+        }
+        if(iterator){
+            keyExpr = keyExpr || new ConcatStringExpr(funcName, '_' , new MethodInvokeExpr('JSON', 'stringify', [iterator]));
+            let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, keyExpr);
+            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), children]);
+            forStmt = new ForIteratorStmt(iterator, container, [extendsChildren]);
+        } else {
+            let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, keyExpr);
+            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), children]);
+            forStmt = new ForLoopStmt(new Expr(forElement.getAttribute('init')), new Expr(forElement.getAttribute('cond')), new Expr(forElement.getAttribute('step')), [extendsChildren]);
+        }
+        let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(null, [result, forStmt, new ReturnStmt(new Expr('array'))])));
         renderer.children.push(fun);
     }
 

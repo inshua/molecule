@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Test Code Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../jquery-3.2.1.js"></script>
+    <script src="../codedom.js"></script>
+    <script src="../html-attr.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jsondiffpatch/dist/jsondiffpatch.umd.min.js"></script>
+    <script src="../molecule-comp.js"></script>
+    <script src="../molecule.2.js"></script>
+</head>
+<!--
+    for logic tag
+-->
+<body>
+    <div id="test">
+        <h1>
+            Welcome to my home
+        </h1>
+        <h2>loop over iterator</h2>
+        <ul>
+            <for it="item" over="this.props.array">
+                <li>{{item}}</li>
+            </for>
+        </ul>
+        
+        <h2>classic for(;;)</h2>
+        <ul>
+            <for init="var i=1" cond="i&lt;=5" step="i++" key="i">
+                <li>{{i}}</li>
+            </for>
+        </ul>
+
+        <h2>range</h2>
+        <ul>
+            <for var="i" from="1" to="5">
+                <li>{{i}}</li>
+            </for>
+        </ul>
+
+        <h2>range desc</h2>
+        <ul>
+            <for var="i" from="5" to="1" step="-1">
+                <li>{{i}}</li>
+            </for>
+        </ul>
+
+        <h2>union</h2>
+        <ul>
+            <for var="i" from="5" to="1" step="-1">
+                <li>{{i}}</li>
+            </for>
+            <for it="item" over="this.props.array">
+                <li>{{item}}</li>
+            </for>
+            <for init="var i=1" cond="i&lt;=5" step="i++" key="i">
+                <li>{{i}}</li>
+            </for>
+        </ul>
+    </div>
+
+    <div id="test3">
+    </div>
+
+    <script>
+        (async function () {
+            var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
+            
+            var script = document.createElement('script');
+            script.innerHTML = code;
+            document.head.appendChild(script);
+            
+            let m = new Test(document.getElementById('test3'), {array:['广东', '上海', '江苏', '浙江']});
+
+            //setInterval(()=> m.render(), 100);
+        })();
+    </script>
+</body>
+</html>

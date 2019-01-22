@@ -314,6 +314,22 @@ class Molecule {
             handler.call(m, this);
         }
     }
+
+    range(from, to, step = 1){
+        return {
+            [Symbol.iterator]:function * (){
+                if(step > 0){
+                    for(var i=from; i<=to; i+=step){
+                        yield i;
+                    }
+                } else {
+                    for(var i=from; i>=to; i+=step){
+                        yield i;
+                    }
+                }
+            }
+        };
+    }
 }
 
 Molecule.__defaultProps__ = {}
