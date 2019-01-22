@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Test Code Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../jquery-3.2.1.js"></script>
+    <script src="../codedom.js"></script>
+    <script src="../html-attr.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jsondiffpatch/dist/jsondiffpatch.umd.min.js"></script>
+    <script src="../molecule-comp.js"></script>
+    <script src="../molecule.2.js"></script>
+</head>
+<!--
+    def or override methods
+    first molecule instance by framework
+-->
+<body>
+    <template>
+        <div m-def=Test onmousemove:evt:x:r="this.handleMove" 
+                        onmouseout:evt="this.element.style.fontSize = ''">
+            it's very powerful
+            <button onclick="alert('hello world, ' + this.props.p1 + ' u clicked ' + target.textContent)">simple handler</button>
+            <button onclick:x="this.handleClick">expression handler</button>
+            <script m-class>
+                handleMove(){
+                    this.element.style.fontSize = 'xx-large';
+                }
+                handleMove2(){
+                    this.element.style.fontSize = 'xx-small';
+                }
+                handleClick(){
+                    alert(this.props.p1);
+                }
+            </script>
+        </div>
+    </template>
+
+    <div m=Test p1="jack" onmousemove:x="this.handleMove2">
+    </div>
+
+    <script>
+        Molecule.DEV_LEVEL = 'compile';
+    </script>
+</body>
+</html>

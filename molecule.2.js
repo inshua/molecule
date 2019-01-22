@@ -589,14 +589,6 @@ Molecule.scanMolecules = function(starter, manual) {
     Molecule._scanningEle = null;
     if (Molecule.debug) console.info('molecule scan', starter, 'over');
 
-    function findMoleculeDef(moleculeName) {
-        var def = Molecule.defines[moleculeName];
-        if (def == null) {
-            throw new Error(moleculeName + ' not found');
-        }
-        return def;
-    }
-
     function createMolecule(target) {
         let moleculeName = target.getAttribute('m');
         var clazz = Molecule.TYPES[moleculeName];
@@ -614,10 +606,14 @@ Molecule.scanMolecules = function(starter, manual) {
             } else {
                 props[propName] = expr;
             }
+            if(type == 'evt'){
+                target.removeAttribute(cattr.name);
+            }
         }
         if(!key){
             key = 'key_' + (Molecule.keyId++);
         }
+        debugger;
         new clazz(target, props);
     }
 
