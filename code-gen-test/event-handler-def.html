@@ -20,7 +20,7 @@
     <div id="test" onmousemove:evt:x:r="this.handleMove" 
                     onmouseout:evt="this.element.style.fontSize = ''">
         it's very powerful
-        <button onclick="alert('hello world, ' + this.props.p1 + 'u clicked ' + target.textContent)">simple handler</button>
+        <button onclick="alert('hello world, ' + this.props.p1 + ' u clicked ' + target.textContent)">simple handler</button>
         <button onclick:x="this.handleClick">expression handler</button>
     </div>
 
@@ -28,6 +28,8 @@
     </div>
 
     <script>
+        Molecule.DEV_LEVEL = 'codedom';
+
         (async function () {
             var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
             
@@ -39,9 +41,9 @@
             m.handleMove = function(){
                 this.element.style.fontSize = 'xx-large';
             }
-            m.handleClick = (function(){
+            m.handleClick = function(){
                 alert(this.props.p1);
-            }).bind(m);
+            };
 
             m.render();     // after plugin handleMove re-render
 

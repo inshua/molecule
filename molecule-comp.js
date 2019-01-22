@@ -39,7 +39,9 @@ class Molecule {
         for(let propName of Object.keys(def)){
             var prop = def[propName];
             if(propName in instanceProps){     // instance props only give literal value, not Prop object
-                prop = prop.replaceExpr(instanceProps[propName])
+                let v = instanceProps[propName];
+                if(v instanceof Molecule.InstanceExpr) v = v.getValue(this);
+                prop = prop.replaceExpr(v);
             }
             if(prop.isRuntime){
                 this.runtimeProps[propName] = prop;
@@ -106,6 +108,9 @@ class Molecule {
     }
 
     prop(propName, value, force){
+        if(value instanceof Molecule.InstanceExpr){
+            value = value.getValue(this);
+        }
         let oldValue = this.props[propName];
         if(oldValue === value){
             if(!force) return;
@@ -121,8 +126,6 @@ class Molecule {
                 this.element.removeEventListener(eventName, oldValue);  // TODO 应准确移除上次绑定的函数
                 this.element.addEventListener(eventName, value);
             } else if(propName.startsWith('on')){
-                // let me = this;
-                // this.element[propName] = function(){ debugger; value.call(me, this)};
                 this.element[propName] = value;
             } else {
                 this.element[propName] = value;
@@ -344,6 +347,8 @@ Molecule.__defaultProps__ = {}
 
 Molecule.TYPES = {'Molecule': Molecule}
 
+Molecule.keyId = 1;
+
 Molecule.extends = function(subclass){
     let defaultProps = [];
     for(var p = subclass; ; p = Object.getPrototypeOf(p.prototype).constructor){
@@ -412,6 +417,15 @@ Molecule.EventHandlerProvider = class{
     getHandler(instance){
         let h = this.handler.call(instance);
         return h && h.bind(instance);
+    }
+}
+
+Molecule.InstanceExpr = class{
+    constructor(fun){
+        this.fun = fun;
+    }
+    getValue(instance){
+        return this.fun.bind(instance);
     }
 }
 

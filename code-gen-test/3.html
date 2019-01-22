@@ -28,6 +28,8 @@
     </div>
 
     <script>
+        Molecule.DEV_LEVEL = 'codedom';
+
         (async function () {
             var code = await Molecule.compileDefine(document.getElementById('test'), 'Test');
             // console.log(code);
