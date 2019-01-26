@@ -16,7 +16,7 @@ class Molecule {
         element.molecule = this;
 
         this.props = {};
-        this.initProps(props || {});
+        props = this.initProps(props || {});
 
         this.state = Object.assign(this.getInitialState(), state);
 
@@ -27,42 +27,31 @@ class Molecule {
 
         // first time render, echo props
         // for event handler this is a bad call, will bind and unbind once
-        for(var k in this.props){
-            this.prop(k, this.props[k], true);
-        }
+        this.setProps(props, true);
         this.render();
     }
 
     initProps(instanceProps){
+        let result = {};
         this.runtimeProps = {};
         let def = this.constructor.__defaultProps__ || {};
         for(let propName of Object.keys(def)){
             var prop = def[propName];
             if(propName in instanceProps){     // instance props only give literal value, not Prop object
                 let v = instanceProps[propName];
-                if(v instanceof Molecule.InstanceExpr) v = v.getValue(this);
-                prop = prop.replaceExpr(v);
+                prop = prop.replaceExpr(v);     // replace instance value to prop define
             }
             if(prop.isRuntime){
-                this.runtimeProps[propName] = prop;
+                this.runtimeProps[propName] = prop;     // this.runtimeProps store the generator
             }
-            if(prop.type == 'evt'){
-                let fun = prop.getValue(this);
-                if(prop.isNative){
-                    this.element.addEventListener(propName.substr(2), fun);
-                } else {
-                    jQuery(this.element).on(propName, fun);
-                }
-                this.props[propName] = fun;
-            } else {
-                this.props[propName] = prop.getValue(this);
+            result[propName] = prop.getValue(this);     // this.props store exact value
+        }
+        for(let propName in instanceProps){        // other props not defined in defaultProps
+            if(propName in this.props == false){
+                result[propName] = instanceProps[propName];
             }
         }
-        for(let k in instanceProps){
-            if(k in this.props == false){
-                this.props[k] = instanceProps[k];
-            }
-        }
+        return result;
     }
 
     getInitialState(){
@@ -70,7 +59,6 @@ class Molecule {
     }
 
     renderDOM(){    // 框架从 DOM 生成 renderDOM 函数
-        
     }
 
     renderRuntimeProps(){     
@@ -123,7 +111,7 @@ class Molecule {
         if(propName in this.element){     // related attribute of native prop will auto change, if native prop hasnt attr the prop just set to dom element
             if(prop && prop.type == 'evt'){
                 let eventName = propName.substr(2);
-                this.element.removeEventListener(eventName, oldValue);  // TODO 应准确移除上次绑定的函数
+                if(oldValue) this.element.removeEventListener(eventName, oldValue); 
                 this.element.addEventListener(eventName, value);
             } else if(propName.startsWith('on')){
                 this.element[propName] = value;
@@ -431,7 +419,7 @@ Molecule.InstanceExpr = class{
 
 // property define
 class Prop{
-    // /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|evt])?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/
+    // /(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|evt])?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/
     constructor(expression, type, isRuntime, isNative, echo){
         this.expression = expression;
         this.type = type;

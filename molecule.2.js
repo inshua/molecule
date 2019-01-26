@@ -180,7 +180,13 @@ Molecule.collectDefine = async function(prototypeElement, baseUrl){
         Molecule.defines[fullname].moleculeSrc = baseUrl;
         prototypeElement.moleculeName = fullname;
         
-        await Molecule.compileDefine(prototypeElement, fullname);
+        let code = await Molecule.compileDefine(prototypeElement, fullname);
+        if(Molecule.DEV_LEVEL == 'compile'){
+            let script = document.createElement('script');
+            script.setAttribute('molecule-gen', fullname);
+            script.innerHTML = code;
+            document.head.append(script);
+        }
     } catch (e) {
         console.error('load ' + fullname + ' failed, ', e);
     }
@@ -235,6 +241,15 @@ function camelCaseToDash( myStr ) {
     return myStr.replace( /([a-z])([A-Z])/g, '$1-$2' ).toLowerCase();
 }
 
+function getTagName(node){
+    if(node instanceof Text) return 'string';
+    if(node instanceof Comment) return 'comment';
+    let tagName = node.tagName && node.tagName.toLowerCase();
+    if(tagName == 'm' && node.hasAttribute('tag')){   // <m tag="table">
+        tagName = node.getAttribute('tag').toLowerCase();
+    }
+    return tagName;
+}
 
 Molecule.compileDefine = async function(prototypeElement, fullname){
     let unit = new Unit();
@@ -242,6 +257,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
     unit.children.push(c);
 
     let renderer = new MethodDecl('renderDOM', prototypeElement.getAttribute('args') || '');
+    renderer.children.push(new MethodInvokeStmt('super', 'renderDOM', []));
     c.children.push(renderer);
 
     if(prototypeElement.moleculeConstructor){
@@ -255,7 +271,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         var expr = parseAttributeValue(value, type, isExpr, false) 
         defaultProps[propName] = new DefaultPropExpr(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr);
     }
-    if(!soloTextNode(prototypeElement, defaultProps)){
+    if(!soloTextNode(prototypeElement, defaultProps, false)){
         renderer.children.push(new MethodInvokeStmt('this', 'assignChildren', compileChildren(Array.from(prototypeElement.childNodes), renderer)));
     }
 
@@ -269,18 +285,19 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             if(isExpr){
                 if(!isInstancing){
                     let fun = new FunctionDeclExpr.fromStatements('', [new ReturnStmt(new Expr(value))]);
+                    // new Prop(function(){return <<code>>});
                     return new NewInstanceExpr('Molecule.EventHandlerProvider', [fun]);
                 } else {
+                    // this.element.click = this.wrapHandler(<<code>>)
                     return new MethodInvokeExpr('this', 'wrapHandler', [new Expr(value)]);
                 }
             } else {
                 if(!isInstancing){
+                    // new Prop(function(){<<code>>}), in Prop.getValue(_this) bind to the instance
                     let fun = FunctionDeclExpr.fromStatements('', [new LineStmt(value)]);
                     return fun;
                 } else {
-                    /*
-                        button.click = this.wrapHandler(function(target){<<code>>})    // `this` means molecule of renderDOM, in the <<code>> `target` means element
-                    */
+                    // button.click = this.wrapHandler(function(target){<<code>>})    // `this` means molecule of renderDOM, in the <<code>> `target` means element
                     let fun = new FunctionDeclExpr('', ['target']);
                     fun.children = [new LineStmt(value)];
                     return new MethodInvokeExpr('this', 'wrapHandler', [fun]);
@@ -297,13 +314,17 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         }
     }
 
-    function soloTextNode(el, props){
+    function soloTextNode(el, props, isInstancing){
         if(el.childNodes.length == 1 && el.firstChild instanceof Text){
             let s = el.firstChild.textContent;
             if(s.indexOf('{{') != -1 && s.indexOf('}}') != -1){
                 // 
             } else {
-                props['innerHTML'] = s;
+                if(!isInstancing){
+                    props['innerHTML'] = new DefaultPropExpr('innerHTML', 's', false, true, false, false, s);
+                } else {
+                    props['innerHTML'] = new LiteralExpr(s, 's');
+                }
                 return true;
             }
         }
@@ -314,7 +335,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         var keyId = 1;
         for(let child of children){
             let props = {};
-            let tagName = child.tagName && child.tagName.toLowerCase();
+            let tagName = getTagName(child);
             var key = null;
             if(child instanceof HTMLElement){
                 for(let cattr of child.attributes){
@@ -364,7 +385,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             }
             
             let d = {$:tagName, key: key, props: new ObjectLiteralExpr(props)};
-            if(!soloTextNode(child, props)){
+            if(!soloTextNode(child, props, true)){
                 let childrenDeep = compileChildren(Array.from(child.childNodes), renderer, embedFunctionId);
                 if(!childrenDeep.isEmpty()) d.children = childrenDeep;
             }
@@ -503,28 +524,20 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
     }
 
     let code = unit.toCode(0);
-    switch(Molecule.DEV_LEVEL){
-    case 'codedom':
-        console.log(code);
-        return code;
-    case 'compile':
-        console.log(code);
-        let script = document.createElement('script');
-        script.setAttribute('molecule-gen', fullname);
-        script.innerHTML = code;
-        document.head.append(script);
-    }
+    console.log(code);
+    return code;
 }
 
-Molecule.attrReg = /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:([s|n|b|d|o]|evt))?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/;
+Molecule.attrReg = /(?<name>[^\/^:]+)(?<type>:([s|n|b|d|o]|evt))?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/;
 Molecule.parseAttributeName = function(element, attrName){ 
     /*
         attr syntax: [m-]attr[:n|s|o|b|d|x|e][/r]
-        regexp: /(?<isCustomProp>m-)?(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|evt])?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/
+        regexp: /(?<name>[^\/^:]+)(?<type>:[s|n|b|d|o|evt])?(?<isExpr>:x)?(?<isRuntime>:r)?(?<isEcho>:e)?$/
     */
     let groups = Molecule.attrReg.exec(attrName).groups;
-    var {isCustomProp, name, type, isExpr, isRuntime, isEcho} = groups;
-    var propName = null;
+    var {name, type, isExpr, isRuntime, isEcho} = groups;
+    var propName = null, isCustomProp = false;
+    let tagName = getTagName(element);
     if(type == ':evt'){            
         isCustomProp = !(name in element);
         propName = name;
@@ -533,14 +546,13 @@ Molecule.parseAttributeName = function(element, attrName){
         propName = name;
     } else {
         let desc = HTML_ATTRS.ofAttr[name];            
-        if(desc != null) var propName = desc.prop;
-        
-        isCustomProp = isCustomProp || propName == null || (!desc.global && desc.tags.indexOf(element.tagName.toLowerCase()) == -1);
-        if(isCustomProp && propName == null){
+        if(desc != null) propName = desc.prop;
+        isCustomProp = propName == null || (!desc.global && desc.tags.indexOf(tagName) == -1);
+        if(isCustomProp){
             propName = dashToCamelCase(name);       // prop without attr
         }
     }
-    let isCustomAttr = HTML_ATTRS.isCustomAttr(name, element.tagName);
+    isCustomAttr = HTML_ATTRS.isCustomAttr(name, tagName);
     attrName = isCustomAttr ? name + (type||'') : name;
     type = type ? type.substr(1) : 's';
     return [propName, attrName, type, isCustomProp, isExpr && true, isRuntime && true, isEcho && true];
@@ -564,7 +576,7 @@ Molecule.init = function(starter) {
  * @param manual
  *            {bool} 是否初始化声明为 molecule-init=manual 的元素
  */
-Molecule.scanMolecules = function(starter, manual) {
+Molecule.scanMolecules = async function(starter, manual) {
     if (starter && starter.jquery) {
         starter = starter[0];
     }
@@ -577,7 +589,7 @@ Molecule.scanMolecules = function(starter, manual) {
         var ele = stk.pop();
         if (ele.hasAttribute('m')) {
             if (ele.getAttribute('molecule-init') == 'manual' && !manual) continue; // 跳过声明为手工创建的元素
-            createMolecule(ele);
+            await createMolecule(ele);
         }
         if (!ele.hasAttribute('init-children-first')) {
             for (var i = ele.children.length - 1; i >= 0; i--) {
@@ -589,7 +601,20 @@ Molecule.scanMolecules = function(starter, manual) {
     Molecule._scanningEle = null;
     if (Molecule.debug) console.info('molecule scan', starter, 'over');
 
-    function createMolecule(target) {
+    async function createMolecule(target){
+        let moleculeName = target.getAttribute('m');
+        target.extends = moleculeName;
+        let code = await Molecule.compileDefine(target, 'Temp'); 
+        let fun = new Function(code + ' ;return Temp;');
+        let clazz = fun();
+        for(let cattr of target.attributes){
+            target.removeAttribute(cattr);
+        }
+        target.innerHTML = '';  // remove all children;
+        new clazz(target);
+    }
+
+    function createMolecule_OLD(target) {
         let moleculeName = target.getAttribute('m');
         var clazz = Molecule.TYPES[moleculeName];
         if(clazz == null) throw new Error(`molecule class '${moleculeName}' not found`);
@@ -613,7 +638,6 @@ Molecule.scanMolecules = function(starter, manual) {
         if(!key){
             key = 'key_' + (Molecule.keyId++);
         }
-        debugger;
         new clazz(target, props);
     }
 
@@ -626,12 +650,12 @@ Molecule.scanMolecules = function(starter, manual) {
     }
 }
 
-Molecule.of = function(ele) {
+Molecule.of = async function(ele) {
     if(ele.jquery) ele = ele[0];
     if(ele == null) return;
     var r = ele.moleculeInstance;
     if(r == null && ele.hasAttribute('m')) {
-        Molecule.scanMolecules(ele);
+        await Molecule.scanMolecules(ele);
         return ele.moleculeInstance;
     }
     return r;
@@ -645,7 +669,7 @@ jQuery(document).on('DOMContentLoaded', async function(){
 	}
 	
 	await Molecule.scanDefines(document, document.baseURI);
-	Molecule.scanMolecules();
+	await Molecule.scanMolecules();
 	jQuery.holdReady(false);
 	
 	jQuery(document).on('DOMNodeInserted', function(e) {

@@ -472,3 +472,98 @@ M.defaultProps = {
 new M(el, {click:function(){alert(this.props.name)}})
 ```
 
+
+# 实例化的问题
+
+如果一个页面全部是组件，最终HTML部分只需要
+
+```html
+<div m=Page1></div>
+```
+
+这样实例化很简单，因为所有组件都已经转为 js，只需要执行 `new Page1(element)` 即可。
+
+能不能像 molecule 时代意义，任何一段 HTML 加上 molecule=Xxx 立即套用组件呢？
+
+molecule 的设计里这是一个很核心的理念，可以实现一个很好的运行时和设计时的切换。
+
+要实现这种运行时 DOM 直接取用，要处理的问题有：
+
+1. `类型化的属性`。要支持类型化的属性，这些属性可以提取后删除，立即值处理比较简单。
+1. `表达式属性`。
+    1. 表达式可以转为 InstanceExpr(function(){expr})，这样能例外处理。
+1. `事件处理器`
+    1. 事件处理器同样有 :r 两种，由于这里没有代码生成，只要设法给出 handler 的值即可。
+1. `子元素`
+    1. children 不能通过 codedom 编译，通过 assignChildren 似乎也是没有意义的。
+    1. 只要把 children 当做一个整体，用 {{children}} 占位，在 assignChildren 时调用该函数返回 childNodes 即可？
+        1. 应该返回的是 cloneNode(true), 因为 {{children}} 如放在 <for> 里可以被反复调用 
+    1. children 的属性、事件处理器应如何处理？！children中如有 {{}} 应如何处理？！如有 if for 应如何处理？!!
+        1. 在理念上，children 作为运行时，应达到和设计时一样，能提供 if for 等标签。这样才能方便的从运行时转为设计时。
+        1. 事实上要达到这种目的，只有一个做法，就是把实例直接转为一个匿名的 Molecule class，干掉所有 attributes 和 children 只留下 tag 并以该 class 实例化。缺点是这个组件内的子元素如正在被外界使用会失去引用。
+        1. 另外，这些 if for 之类的 tag 在模板里可以套在 tr 外，但在实例化页面里这么做是不行的。
+        1. 经测试，即使在 template 中也是不允许的。
+        1. 所以我用 <m tag=table></m> <m tag=tr></m> 这种形式来表达，在生成代码环节转换即可
+
+综上，作为匿名 Molecule 类可能是最好的办法。可以生成这样的代码：
+
+```js
+    class Temp extends m-def{
+
+    }
+    Temp.defaultProps = {}
+    return Temp
+```
+通过 (new Function())(ele) 即可实例化。
+
+##继承，实例中子元素、子类中子元素的问题
+
+在 molecule 原来的设计中，通过 molecule-placeholder 占位的元素在最后被嵌入，其它元素从基类到子类一级一级展开。
+
+在本设计中， `{{children}}` 的效果和 `molecule-placeholder` 并不相同，它可以调整为 `{{this.props.children}}`。
+
+最终希望看到的是：
+
+```js
+class T1{
+    renderDOM(){
+        // emb T2 in return children 
+    }
+}
+
+class T2{
+    renderDOM(){
+        // emb T3 in return children. T3's renderDOM as my children
+    }
+}
+
+class T3{
+    renderDOM(){
+        // from html 
+    }
+}
+```
+为达此目的，`renderDOM` 似乎应该演变为如下 `createChildren`.
+```js
+class T1{
+    createChildren(nested){
+        // nested is a function or an array can embed in children
+        super.createChildren([/*auto generated code with *netsted* embed in*/]);
+    }
+}
+
+class T2{
+    createChildren(nested){
+        super.createChildren([/*auto generated created children code*/]);
+    }
+}
+
+class T3{
+    createChildren(nested){
+        super.createChildren([/* me */]);
+    }
+}
+```
+这种次序决定了继承可以将子类的元素容纳进父类。如子类需要对父类进行包裹，则不宜采用继承观念，使用简单的容器类是更好的选择。
+实际上界面这种东西继承一直不是容易的事。
+从 `Component` `Control` `ButtonBase` `Button` 等顺序可以看出，至少前面2种组件都是没有界面的。在 molecule 里，这种组件可以用js方式从 `Molecule` 类直接派生而不是从 DOM 开始。
