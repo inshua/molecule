@@ -634,41 +634,6 @@ Molecule.scanMolecules = async function(starter, manual) {
         target.innerHTML = '';  // remove all children;
         new clazz(target);
     }
-
-    function createMolecule_OLD(target) {
-        let moleculeName = target.getAttribute('m');
-        var clazz = Molecule.TYPES[moleculeName];
-        if(clazz == null) throw new Error(`molecule class '${moleculeName}' not found`);
-        let props = {};
-        var key = null;
-        for(let cattr of target.attributes){
-            let value = cattr.value;
-            let [propName, attrName, type, isCustomProp, isExpr, isRuntime, isEcho] = Molecule.parseAttributeName(target, cattr.name);
-            if(isRuntime) throw ':r(untime) option can only appear within molecule define';
-            if(isEcho) throw ':e(cho) option can only appear within molecule define';
-            var expr = parseAttributeValue(value, type, isExpr, true);
-            if(propName == 'key'){
-                key = expr;
-            } else {
-                props[propName] = expr;
-            }
-            if(type == 'evt'){
-                target.removeAttribute(cattr.name);
-            }
-        }
-        if(!key){
-            key = 'key_' + (Molecule.keyId++);
-        }
-        new clazz(target, props);
-    }
-
-    function parseAttributeValue(value, type, isExpr){
-        if(isExpr || type == 'evt'){     // expr
-            return new Molecule.InstanceExpr(new Function('return ' + value));
-        } else {
-            return Molecule.castType(value, type);
-        }
-    }
 }
 
 Molecule.of = async function(ele) {

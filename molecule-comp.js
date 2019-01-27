@@ -190,7 +190,7 @@ class Molecule {
             let newKeys = children.map(c => c.key);
             var delta = jsondiffp.diff(this.childrenKeys, newKeys);
             if(delta){
-                console.log('diff children of ', this.key, ':', delta);
+                //console.log('diff children of ', this.key, ':', delta);
                 var oldKeys = this.childrenKeys.slice();
                 for(var k in delta){
                     if(k == '_t') continue;     // in diff result, _t:'a' means type: 'array'
