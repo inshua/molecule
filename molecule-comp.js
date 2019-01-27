@@ -283,7 +283,8 @@ class Molecule {
         this.element = null;
     }
 
-    cloneChildren(expr, baseKey){
+    cloneChildren(expr){
+        if(expr == null) return [];
         var keyId = 1;
         if(!Array.isArray(expr)){
             return [cloneSolo.call(this, expr)]
@@ -296,16 +297,16 @@ class Molecule {
                 expr = expr.cloneNode(true);
                 if(!expr.molecule){
                     expr.molecule = new Molecule(expr);
-                    expr.molecule.key = expr.key = baseKey + '_' + (keyId++);  
+                    //expr.molecule.key = expr.key = 'clone_' + (keyId++);  
                 }
                 return expr
             } else if(typeof expr == 'object' && expr.$){
                 expr = jsondiffpatch.clone(expr);
-                if(expr.key == null) {
-                    expr.key = baseKey + '_' + (keyId++);
-                } else {
-                    expr.key = baseKey + '_' + expr.key;    // TODO 解决 for 里的元素已经有 key 导致二义
-                }
+                // if(expr.key == null) {
+                //     expr.key = 'clone_' + (keyId++);
+                // } else {
+                //     expr.key = expr.key;    // TODO 解决 for 里的元素已经有 key 导致二义
+                // }
                 return expr;
                 return this.toElement(expr);
             } else {

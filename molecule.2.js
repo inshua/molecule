@@ -115,6 +115,7 @@ Molecule.scanDefines = async function(starter, baseUrl) {
 Molecule._LOAD_ONCE_RESOURCE = {};
 Molecule.collectDefine = async function(prototypeElement, baseUrl){
     var fullname = prototypeElement.getAttribute('m-def');
+    prototypeElement.removeAttribute('m-def');
     var styles = Array.prototype.slice.call(prototypeElement.querySelectorAll('style'));
     styles = styles.concat(Array.prototype.slice.call(prototypeElement.parentNode.querySelectorAll("style[molecule-for='" + fullname + "']")));
     styles = styles.map(function(style) {
@@ -277,7 +278,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         defaultProps[propName] = new DefaultPropExpr(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr);
     }
     if(!soloTextNode(prototypeElement, defaultProps, false)){
-        let createChildrenExpr = new MethodInvokeExpr('super', 'createChildren', compileChildren(Array.from(prototypeElement.childNodes), renderer, undefined, fullname));
+        let createChildrenExpr = new MethodInvokeExpr('super', 'createChildren', compileChildren(Array.from(prototypeElement.childNodes), renderer));
         renderer.children.push(new ReturnStmt(createChildrenExpr));
     } else {
         renderer.children.push(new ReturnStmt(new MethodInvokeExpr('super', 'createChildren', [])));
@@ -383,7 +384,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             } else if (tagName == 'for'){
                 let funcName = prefix + '_loop_' + (embedFunctionId.id ++);
                 renderer.children.push(compileForLoopFunction(child, funcName, renderer, embedFunctionId));
-                array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
+                array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[new Expr('nested')])));
                 continue;
             } else if(tagName == 'switch'){
                 let funcName = prefix + '_switch_' + (embedFunctionId.id ++);
@@ -467,7 +468,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             <for init='' cond='' step='' key=''></for>
             <for times=''></for>
          */
-        let result = new VarDeclStmt('array', new Expr('[]'));
+        let resultDecl = new VarDeclStmt('array', new Expr('[]'));
         var forStmt = null;
 
         var iterator = null, container = null, keyExpr = null;
@@ -486,10 +487,11 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                 container = new Expr(forElement.getAttribute('over'));
             }
         }
+        let cloneNested = new VarDeclStmt('nested', new MethodInvokeExpr('this', 'cloneChildren', [new Expr('__nested__')]));   // var nested = this.cloneChildren(__nested__)
         if(iterator){
             keyExpr = keyExpr || new ConcatStringExpr(funcName, '_' , new MethodInvokeExpr('JSON', 'stringify', [iterator]));
             let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, keyExpr);
-            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), new MethodInvokeExpr('this', 'cloneChildren', [children])]);
+            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), children]);
             forStmt = new ForIteratorStmt(iterator, container, [extendsChildren]);
         } else {
             let isTimes = forElement.hasAttribute('times');
@@ -497,14 +499,14 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                 keyExpr = keyExpr || new ConcatStringExpr(funcName, '_' , new Expr('time'));
             }
             let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, keyExpr);
-            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), new MethodInvokeExpr('this', 'cloneChildren', [children])]);
+            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), children]);
             if(isTimes){
-                forStmt = new ForLoopStmt(new Expr('let time=1'), new LtEqExpr(new Expr('time'), new Expr(forElement.getAttribute('times'))), new Expr('time++'), [extendsChildren]); 
+                forStmt = new ForLoopStmt(new Expr('let time=1'), new LtEqExpr(new Expr('time'), new Expr(forElement.getAttribute('times'))), new Expr('time++'), [cloneNested, extendsChildren]); 
             } else {
-                forStmt = new ForLoopStmt(new Expr(forElement.getAttribute('init')), new Expr(forElement.getAttribute('cond')), new Expr(forElement.getAttribute('step')), [extendsChildren]);
+                forStmt = new ForLoopStmt(new Expr(forElement.getAttribute('init')), new Expr(forElement.getAttribute('cond')), new Expr(forElement.getAttribute('step')), [cloneNested, extendsChildren]);
             }
         }
-        let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(null, [result, forStmt, new ReturnStmt(new Expr('array'))])));
+        let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(['__nested__'], [resultDecl,  forStmt, new ReturnStmt(new Expr('array'))])));
         renderer.children.push(fun);
     }
 
