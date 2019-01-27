@@ -567,3 +567,52 @@ class T3{
 这种次序决定了继承可以将子类的元素容纳进父类。如子类需要对父类进行包裹，则不宜采用继承观念，使用简单的容器类是更好的选择。
 实际上界面这种东西继承一直不是容易的事。
 从 `Component` `Control` `ButtonBase` `Button` 等顺序可以看出，至少前面2种组件都是没有界面的。在 molecule 里，这种组件可以用js方式从 `Molecule` 类直接派生而不是从 DOM 开始。
+
+## 元素删除的处理、删除的动画
+
+现在需要在删除元素时播放一段动画。
+
+由于增加删除动作都是由 assignChildren 维护的，需要从 assignChildren 中分离出一个删除动作。
+
+该删除动作触发 onwillremove 事件，在事件中启动动画，并在播放完后执行 `event.continue()`。因此 assignChildren 应表现为一个 promise 结构。
+
+是一个一个删呢还是并发的删呢？
+
+在 React 的 ReactTransitionGroup 的设计里是这么做的：
+
+```js
+  componentWillAppear = (done) => {
+    if (this.props.appear) {
+      this.transition('appear', done, this.props.appearTimeout);
+    } else {
+      done();
+    }
+  }
+
+  componentWillEnter = (done) => {
+    if (this.props.enter) {
+      this.transition('enter', done, this.props.enterTimeout);
+    } else {
+      done();
+    }
+  }
+
+  componentWillLeave = (done) => {
+    if (this.props.leave) {
+      this.transition('leave', done, this.props.leaveTimeout);
+    } else {
+      done();
+    }
+  }
+```
+
+React 这个插件实现为两个 vdom 组件 `<TransitionGroup><CSSTransition>` 并将实际的组件包围在里面。这个设计看起来很有意思，实际上有点错乱，按内容层次来说，组件的动画是组件自身的行为，表达为下面的形式更为可取：
+```html
+    <div onwillenter="this.addClass('').afterAnimate(event.done)" onwillleave="this.attr('class',).afterAnimate(event.done)"></div>
+```
+显然，这种表达形式太基础太底层，可以通过一种插件的机制来做到更好。
+```html
+    <div plugins="[...this.props.plugins, transition({name:'test',duration:200})]"></div> <!-- 加入一个 transition 插件 -->
+```
+插件可以拦截组件的事件(以 promise 形式切入)，在组件初始化时可以装载插件。
+
