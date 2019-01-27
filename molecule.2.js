@@ -68,6 +68,8 @@ Molecule.DEV_LEVEL = 'codedom';         // codedom / compile
 
 Molecule.defines = {};
 
+Molecule.nextTempId = 1;
+
 /**
  * 加载指定 html 文件中的所有 molecule。
  * 
@@ -179,6 +181,8 @@ Molecule.collectDefine = async function(prototypeElement, baseUrl){
         Molecule.defines[fullname] = prototypeElement;
         Molecule.defines[fullname].moleculeSrc = baseUrl;
         prototypeElement.moleculeName = fullname;
+        prototypeElement.extends = prototypeElement.getAttribute('m');
+        prototypeElement.removeAttribute('m');
         
         let code = await Molecule.compileDefine(prototypeElement, fullname);
         if(Molecule.DEV_LEVEL == 'compile'){
@@ -256,9 +260,10 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
     let c = new ClassDecl(fullname, prototypeElement.extends || 'Molecule')
     unit.children.push(c);
 
-    let renderer = new MethodDecl('renderDOM', prototypeElement.getAttribute('args') || '');
-    renderer.children.push(new MethodInvokeStmt('super', 'renderDOM', []));
+    let renderer = new MethodDecl('createChildren', ['nested']);
     c.children.push(renderer);
+    //renderer.children.push(new LineStmt('console.info(this.constructor.name, nested)'));
+    //renderer.children.push(new LineStmt('debugger'));
 
     if(prototypeElement.moleculeConstructor){
         c.children.push(new Expr(prototypeElement.moleculeConstructor.innerHTML));
@@ -272,7 +277,10 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         defaultProps[propName] = new DefaultPropExpr(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr);
     }
     if(!soloTextNode(prototypeElement, defaultProps, false)){
-        renderer.children.push(new MethodInvokeStmt('this', 'assignChildren', compileChildren(Array.from(prototypeElement.childNodes), renderer)));
+        let createChildrenExpr = new MethodInvokeExpr('super', 'createChildren', compileChildren(Array.from(prototypeElement.childNodes), renderer, undefined, fullname));
+        renderer.children.push(new ReturnStmt(createChildrenExpr));
+    } else {
+        renderer.children.push(new ReturnStmt(new MethodInvokeExpr('super', 'createChildren', [])));
     }
 
     let defaultPropsStmt = new AssignStmt(fullname + '.defaultProps', new ObjectLiteralExpr(defaultProps));
@@ -368,17 +376,17 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             }
 
             if(tagName == 'if'){
-                let funcName = 'if_' + (embedFunctionId.id ++);
+                let funcName = prefix + '_if_' + (embedFunctionId.id ++);
                 renderer.children.push(compileIfFunction(child, funcName, renderer, embedFunctionId));
                 array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
                 continue;
             } else if (tagName == 'for'){
-                let funcName = 'loop_' + (embedFunctionId.id ++);
+                let funcName = prefix + '_loop_' + (embedFunctionId.id ++);
                 renderer.children.push(compileForLoopFunction(child, funcName, renderer, embedFunctionId));
                 array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
                 continue;
             } else if(tagName == 'switch'){
-                let funcName = 'switch_' + (embedFunctionId.id ++);
+                let funcName = prefix + '_switch_' + (embedFunctionId.id ++);
                 renderer.children.push(compileSwitchFunction(child, funcName, renderer, embedFunctionId));
                 array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
                 continue;
@@ -457,6 +465,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             <for it='' over='' [key='']></for>
             <for var='' from='' to='' step='' [key='']></for>
             <for init='' cond='' step='' key=''></for>
+            <for times=''></for>
          */
         let result = new VarDeclStmt('array', new Expr('[]'));
         var forStmt = null;
@@ -480,12 +489,20 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         if(iterator){
             keyExpr = keyExpr || new ConcatStringExpr(funcName, '_' , new MethodInvokeExpr('JSON', 'stringify', [iterator]));
             let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, keyExpr);
-            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), children]);
+            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), new MethodInvokeExpr('this', 'cloneChildren', [children])]);
             forStmt = new ForIteratorStmt(iterator, container, [extendsChildren]);
         } else {
+            let isTimes = forElement.hasAttribute('times');
+            if(isTimes){
+                keyExpr = keyExpr || new ConcatStringExpr(funcName, '_' , new Expr('time'));
+            }
             let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, keyExpr);
-            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), children]);
-            forStmt = new ForLoopStmt(new Expr(forElement.getAttribute('init')), new Expr(forElement.getAttribute('cond')), new Expr(forElement.getAttribute('step')), [extendsChildren]);
+            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), new MethodInvokeExpr('this', 'cloneChildren', [children])]);
+            if(isTimes){
+                forStmt = new ForLoopStmt(new Expr('let time=1'), new LtEqExpr(new Expr('time'), new Expr(forElement.getAttribute('times'))), new Expr('time++'), [extendsChildren]); 
+            } else {
+                forStmt = new ForLoopStmt(new Expr(forElement.getAttribute('init')), new Expr(forElement.getAttribute('cond')), new Expr(forElement.getAttribute('step')), [extendsChildren]);
+            }
         }
         let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(null, [result, forStmt, new ReturnStmt(new Expr('array'))])));
         renderer.children.push(fun);
@@ -602,11 +619,13 @@ Molecule.scanMolecules = async function(starter, manual) {
     if (Molecule.debug) console.info('molecule scan', starter, 'over');
 
     async function createMolecule(target){
-        let moleculeName = target.getAttribute('m');
+        const moleculeName = target.getAttribute('m');
+        target.removeAttribute('m');
         target.extends = moleculeName;
-        let code = await Molecule.compileDefine(target, 'Temp'); 
-        let fun = new Function(code + ' ;return Temp;');
-        let clazz = fun();
+        const className = 'Temp_' + (Molecule.nextTempId ++);
+        const code = await Molecule.compileDefine(target, className); 
+        const fun = new Function(code + ` ;return ${className};`);
+        const clazz = fun();
         for(let cattr of target.attributes){
             target.removeAttribute(cattr);
         }

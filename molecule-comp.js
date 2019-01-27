@@ -58,7 +58,8 @@ class Molecule {
         return {};
     }
 
-    renderDOM(){    // 框架从 DOM 生成 renderDOM 函数
+    createChildren(nested){    // 框架从 DOM 生成 createChildren 函数
+        return nested;
     }
 
     renderRuntimeProps(){     
@@ -70,7 +71,7 @@ class Molecule {
 
     render(){
         this.renderRuntimeProps();
-        this.renderDOM();
+        this.assignChildren(this.createChildren());
         this.echoAttributes();
     }
 
@@ -282,6 +283,39 @@ class Molecule {
         this.element = null;
     }
 
+    cloneChildren(expr, baseKey){
+        var keyId = 1;
+        if(!Array.isArray(expr)){
+            return [cloneSolo.call(this, expr)]
+        } else {
+            return expr.map(cloneSolo.bind(this));
+        }
+
+        function cloneSolo(expr){
+            if(expr instanceof Node){
+                expr = expr.cloneNode(true);
+                if(!expr.molecule){
+                    expr.molecule = new Molecule(expr);
+                    expr.molecule.key = expr.key = baseKey + '_' + (keyId++);  
+                }
+                return expr
+            } else if(typeof expr == 'object' && expr.$){
+                expr = jsondiffpatch.clone(expr);
+                if(expr.key == null) {
+                    expr.key = baseKey + '_' + (keyId++);
+                } else {
+                    expr.key = baseKey + '_' + expr.key;    // TODO 解决 for 里的元素已经有 key 导致二义
+                }
+                return expr;
+                return this.toElement(expr);
+            } else {
+                let def = {$:'string', key: baseKey + '_' + (keyId++), props:{textContent:expr + ''}};
+                return def;
+                return this.toElement(def);
+            }
+        }
+    }
+
     wrapChildren(expr, baseKey){        // TODO assignChildren 时支持 DOM Node 和 string/date/base types...
         var keyId = 1;
         if(!Array.isArray(expr)){
@@ -298,11 +332,17 @@ class Molecule {
                 }
                 return expr
             } else if(typeof expr == 'object' && expr.$){
-                if(expr.key == null) expr.key = baseKey + '_' + (keyId++);
+                if(expr.key == null) {
+                    expr.key = baseKey + '_' + (keyId++);
+                } else {
+                    expr.key = baseKey + '_' + expr.key;    // TODO 解决 for 里的元素已经有 key 导致二义
+                }
+                return expr;
                 return this.toElement(expr);
             } else {
-                var el = this.toElement({$:'string', key: baseKey + '_' + (keyId++), props:{textContent:expr + ''}});
-                return el;
+                let def = {$:'string', key: baseKey + '_' + (keyId++), props:{textContent:expr + ''}};
+                return def;
+                return this.toElement(def);
             }
         }
     }

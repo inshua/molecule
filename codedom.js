@@ -297,6 +297,17 @@ class BracketExpr extends Expr{
     }
 }
 
+class LtEqExpr extends Expr{
+    constructor(left, right){
+        super();
+        this.left = left;
+        this.right = right;
+    }
+    toCode(indent){
+        return Expr.toCode(this.left, indent) + '<=' + Expr.toCode(this.right, indent);
+    }
+}
+
 class ReturnStmt extends Statement{
     constructor(expr){
         super()
@@ -460,7 +471,28 @@ class ConcatStringExpr extends Expr{
     }
 
     toCode(indent){
-        return this.children.map(item => Expr.toCode(item, indent)).join('+');
+        let arr = [];
+        var s = '';
+        for(let c of this.children){
+            if(c instanceof Expr){
+                if(c instanceof LiteralExpr){
+                    if(c.type == 's'){
+                        s += c.value;
+                    } else {
+                        s += c.toCode(indent);
+                    }
+                } else {
+                    if(s) arr.push(JSON.stringify(s));
+                    s = '';
+                    arr.push(c.toCode(indent));
+                }
+            } else {
+                s += new String(c);
+            }
+        }
+        if(s) arr.push(JSON.stringify(s));
+        return arr.join('+');
+        //return this.children.map(item => Expr.toCode(item, indent)).join('+');
     }
 }
 
