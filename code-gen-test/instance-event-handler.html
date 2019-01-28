@@ -21,16 +21,16 @@
         <div m-def=Test onmousemove:evt:x:r="this.handleMove" 
                         onmouseout:evt="this.element.style.fontSize = ''">
             it's very powerful
-            <button onclick="alert('hello world, ' + this.props.p1 + ' u clicked ' + target.textContent)">simple handler</button>
+            <button onclick="alert('hello world, ' + this.props.p1 + ' u clicked ' + target.textContent);">simple handler</button>
             <button onclick:x="this.handleClick">expression handler</button>
             <script m-class>
-                handleMove(){
+                handleMove(event){
                     this.element.style.fontSize = 'xx-large';
                 }
-                handleMove2(){
+                handleMove2(event){
                     this.element.style.fontSize = 'xx-small';
                 }
-                handleClick(){
+                handleClick(event){
                     alert(this.props.p1);
                 }
             </script>

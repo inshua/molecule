@@ -120,9 +120,11 @@ class Molecule {
                 this.element[propName] = value;
             }
         } else {        // not native property
-            if(prop && prop.type == 'evt'){
+            if(prop && prop.type == 'evt' || propName.startsWith('on')){        // TODO 有一个缺陷，对于未定义的事件，生成的代码没有提供说明这是事件处理代码，而在界面是有指定的
                 let eventName = propName.substr(2);
-                jQuery(this.element).off(eventName, oldValue).on(eventName, value);
+                if(oldValue) this.element.removeEventListener(eventName, oldValue); 
+                this.element.addEventListener(eventName, value);
+                //jQuery(this.element).off(eventName, oldValue).on(eventName, value);
                 this.props[propName] = value;
             }
             // HTML_ATTRS.isCustomProp(propName, this.element.tagName)
@@ -220,11 +222,13 @@ class Molecule {
     insertAt(index, element){
         var old = this.childrenKeys[index];
         if(old){
+            old.molecule.willEnter();
             old = this.children[old];
             old.before(element);
             this.childrenKeys.splice(index, 0, element.key);
             this.children[element.key] = element;
         } else {
+            element.molecule.willEnter();
             this.element.appendChild(element);
             this.childrenKeys.push(element.key);
             this.children[element.key] = element;
@@ -234,8 +238,10 @@ class Molecule {
     removeAllChildren(){
         for(let k of this.childrenKeys){
             let el = this.children[k];
-            el.molecule.dispose()
-            el.remove();
+            el.molecule.willLeave(()=>{
+                el.molecule.dispose();
+                el.remove();
+            })
         }
         this.children = {};
         this.childrenKeys = []; 
@@ -244,24 +250,32 @@ class Molecule {
     removeChild(childKey){
         if(typeof childKey == 'string'){
             this.childrenKeys.splice(this.childrenKeys.indexOf(childKey),1);
-            this.children[childKey].molecule.dispose();
-            this.children[childKey].remove();
-            delete this.children[childKey]
+            var child = this.children[childKey];
         } else {
             let child = childKey, childKey = child.key;
             this.childrenKeys.splice(this.childrenKeys.indexOf(childKey),1);
-            child.remove();
-            child.molecule.dispose();
-            delete this.children[childKey];
         }
+        child.molecule.willLeave(()=>{
+            child.molecule.dispose();
+            child.remove();
+            delete this.children[childKey]
+        });
     }
 
     swap(childKey1, childKey2){
         let index1 = this.childrenKeys.indexOf(childKey1), index2 = this.childrenKeys.indexOf(childKey2);
-        this.swapNodes(this.children[childKey1], this.children[childKey2]);
-        let t = this.childrenKeys[index1];
-        this.childrenKeys[index1] = this.childrenKeys[index2];
-        this.childrenKeys[index2] = t;
+        const c1 = this.children[childKey1], c2 = this.children[childKey2];
+        c1.molecule.willLeave(()=> c2.willLeave(() => c1.willEnter(()=> c2.willEnter(
+            ()=>{
+                this.dispatchEvent('willswap', ()=>{
+                    this.swapNodes(c1, c2);
+                    let t = this.childrenKeys[index1];
+                    this.childrenKeys[index1] = this.childrenKeys[index2];
+                    this.childrenKeys[index2] = t;
+                }, {side1: c1, side2: c2})
+            }
+        ))))
+        
     }
 
     //https://stackoverflow.com/questions/10716986/swap-2-html-elements-and-preserve-event-listeners-on-them/10717422#10717422
@@ -284,6 +298,37 @@ class Molecule {
         this.removeAllChildren();
         delete this.element['molecule'];
         this.element = null;
+    }
+
+    dispatchEvent(eventType, then, eventInitDict){
+        var event = null;
+        event = new CustomEvent(eventType, {detail: Object.assign({
+            molecule : this,
+            // bubbles : true,
+            tasks: [],  // promises
+            addTask: function(task){ this.tasks.push(task); return this;},
+        }, eventInitDict)});
+        if(this.element.dispatchEvent(event)){
+            if(event.detail.tasks){
+                Promise.all(event.detail.tasks).then(()=> then && then.call(this, event));
+            } else {
+                then && then.call(this, event);
+            }
+        } else {
+            then && then.call(this, event);
+        }
+    }
+
+    willInit(then){
+        this.dispatchEvent('willinit', then);
+    }
+
+    willEnter(then){
+        this.dispatchEvent('willenter', then);
+    }
+
+    willLeave(then){
+        this.dispatchEvent('willleave', then);
     }
 
     cloneChildren(expr, baseKey){
@@ -348,8 +393,8 @@ class Molecule {
 
     wrapHandler(handler){
         let m = this;
-        return function(){
-            handler.call(m, this);
+        return function(event){
+            handler.call(m, event, this);
         }
     }
 

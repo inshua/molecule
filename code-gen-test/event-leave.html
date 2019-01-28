@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Test Code Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../jquery-3.2.1.js"></script>
+    <script src="../codedom.js"></script>
+    <script src="../html-attr.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jsondiffpatch/dist/jsondiffpatch.umd.min.js"></script>
+    <script src="../molecule-comp.js"></script>
+    <script src="../molecule.2.js"></script>
+    <style>
+        @keyframes my-animation {        
+            from {
+                opacity : 0;
+                left : -100px;
+            }
+            to {
+                opacity : 1;
+                left : 0;
+            }      
+        }
+
+        .stage-enter {
+            position: relative;
+            animation: my-animation 0.25s ease-in;
+        }
+        .stage-leave {
+            transition: 0.25s;
+            transition-timing-function: ease-out;
+            transform: translateY(0);
+            opacity: 0;
+        }
+
+    </style>
+</head>
+<!--
+    will
+-->
+<body>
+    <template>
+        <div m-def=Test>
+            <button onclick:x="this.addItem">+</button>
+            <ul>
+                <for it="item" over="this.props.items">
+                    <li onwillleave:evt:x=this.handleWillLeave class="stage-enter">
+                        {{item.name}} &nbsp;
+                        <a href="###" onclick="this.prop('items', this.props.items.filter(i => i != item)).render()">X</a>
+                    </li>
+                </for>
+            </ul>
+            <script m-class>
+                handleWillLeave(event){
+                    event.detail.addTask(new Promise(function(resolve, reject){
+                        event.target.addEventListener("animationend", resolve, {once:true});
+                        event.target.addEventListener("transitionend", resolve, {once:true});
+                        event.target.className = 'stage-leave';
+                    }));
+                }
+                addItem(){
+                    this.prop('items', [...this.props.items, {name: window.prompt('input yourname')}]).render();
+                }
+            </script>
+        </div>
+    </template>
+
+    <div m=Test items:o='[{"name":"Jack"}, {"name":"Tony"}]'>
+    </div>
+
+    <script>
+        Molecule.DEV_LEVEL = 'compile';
+    </script>
+</body>
+</html>

@@ -608,7 +608,7 @@ class T3{
 ```
 
 仔细阅读了它的代码，componentWillAppear 来自于 performAppear，而 performAppear 来自 `componentDidMount`，所以这个 componentWillAppear 是自己实现的。
-willenter 和 willleave 则来自 `componentDidUpdate`，依靠代码比对发现哪些元素移除了。见 https://github.com/reactjs/react-transition-group/blob/v1-stable/src/TransitionGroup.js。
+willenter 和 willleave 则来自 `componentDidUpdate`，依靠自己编写代码比对发现哪些元素增加了哪些移除了。见 https://github.com/reactjs/react-transition-group/blob/v1-stable/src/TransitionGroup.js。
 
 从代码可以发现 react 并不是为 animation 设计的，所以提供的支援很少，这部分代码 (自己比对 getChildMapping) 有点黑客了。
 
@@ -619,6 +619,23 @@ React 这个插件实现为两个 vdom 组件 `<TransitionGroup><CSSTransition>`
 显然，这种表达形式太基础太底层，可以通过一种插件的机制来做到更好。
 ```html
     <div plugins="[...this.props.plugins, transition({name:'test',duration:200})]"></div> <!-- 加入一个 transition 插件 -->
+    或
+    <div oninited="this.installPlugin('transition', {name:'test',duration:200})"></div> <!-- 加入一个 transition 插件 -->
 ```
 插件可以拦截组件的事件(以 promise 形式切入)，在组件初始化时可以装载插件。
 
+## 生命周期、事件
+
+molecule 按生命周期触发如下事件：
+
+* willinit - 在初始完毕触发(子元素仍未装载，this.element 可以得到)
+* willrender - 在即将渲染时触发
+* willfill - 在子元素将装载时触发
+* filled - 在子元素装载后触发
+* rendered - 渲染完毕触发
+* inited - 在初始完毕触发(第一次初始化并已渲染完)
+* willleave - 在将要删除时触发
+* willenter - 在将要加入 DOM 树时触发 后续事件为 TODO
+* leaved - 删除后发生
+
+也可在派生类覆盖同名函数实现定制。

@@ -306,8 +306,8 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                     let fun = FunctionDeclExpr.fromStatements('', [new LineStmt(value)]);
                     return fun;
                 } else {
-                    // button.click = this.wrapHandler(function(target){<<code>>})    // `this` means molecule of renderDOM, in the <<code>> `target` means element
-                    let fun = new FunctionDeclExpr('', ['target']);
+                    // button.click = this.wrapHandler(function(event, target){<<code>>})    // `this` means molecule of renderDOM, in the <<code>> `target` means element
+                    let fun = new FunctionDeclExpr('', ['event', 'target']);
                     fun.children = [new LineStmt(value)];
                     return new MethodInvokeExpr('this', 'wrapHandler', [fun]);
                 }
@@ -681,7 +681,28 @@ Molecule.scanMolecules = async function(starter, manual) {
             if(isExpr || type == 'evt'){     // expr
                 return new Molecule.InstanceExpr(new Function('return ' + value));
             } else {
-                return Molecule.castType(value, type);
+                switch(type){
+                case 's':
+                    return value;
+                case 'n':
+                    return value == ''? null : value * 1;
+                case 'b':
+                    value = value.toLowerCase();
+                    if(value == 'true') return true;
+                    if(value == 'false') return false;
+                    if(value == 'y' || value == 'yes') return true;
+                    if(value == 'n' || value == 'no') return false;
+                    return true;
+                case 'o':
+                    return JSON.parse(value);
+                case 'd':
+                    var n = Number.parseInt(value);
+                    if(!isNaN(n))
+                        return new Date(value);
+                    else
+                        return Date.parse(value);
+                }
+                return value;
             }
         }
     }
