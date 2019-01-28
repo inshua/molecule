@@ -374,20 +374,23 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                     tagName = 'string';
                     props.textContent = child.textContent;
                 }
+            } else if(child instanceof Comment){
+                tagName = 'comment';
+                props.textContent = child.textContent;
             }
 
             if(tagName == 'if'){
-                let funcName = prefix + '_if_' + (embedFunctionId.id ++);
+                let funcName = fullname + '_if_' + (embedFunctionId.id ++);
                 renderer.children.push(compileIfFunction(child, funcName, renderer, embedFunctionId));
                 array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
                 continue;
             } else if (tagName == 'for'){
-                let funcName = prefix + '_loop_' + (embedFunctionId.id ++);
+                let funcName = fullname + '_loop_' + (embedFunctionId.id ++);
                 renderer.children.push(compileForLoopFunction(child, funcName, renderer, embedFunctionId));
-                array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[new Expr('nested')])));
+                array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[new Expr('nested')], prefix)));
                 continue;
             } else if(tagName == 'switch'){
-                let funcName = prefix + '_switch_' + (embedFunctionId.id ++);
+                let funcName = fullname + '_switch_' + (embedFunctionId.id ++);
                 renderer.children.push(compileSwitchFunction(child, funcName, renderer, embedFunctionId));
                 array.push(new ExpandIteratorExpr(new FunctionInvokeExpr(funcName,[])));
                 continue;
@@ -487,26 +490,31 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                 container = new Expr(forElement.getAttribute('over'));
             }
         }
-        let cloneNested = new VarDeclStmt('nested', new MethodInvokeExpr('this', 'cloneChildren', [new Expr('__nested__')]));   // var nested = this.cloneChildren(__nested__)
+        let cloneNested = new VarDeclStmt('nested', new MethodInvokeExpr('this', 'cloneChildren', [new Expr('__nested__'), funcName]));   // var nested = this.cloneChildren(__nested__)
+        let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, funcName);
+        let c2 = new ConstDeclStmt('children', children);
         if(iterator){
-            keyExpr = keyExpr || new ConcatStringExpr(funcName, '_' , new MethodInvokeExpr('JSON', 'stringify', [iterator]));
-            let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, keyExpr);
-            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), children]);
-            forStmt = new ForIteratorStmt(iterator, container, [extendsChildren]);
+            keyExpr = keyExpr || new MethodInvokeExpr('JSON', 'stringify', [iterator]);
+            // keyExpr = keyExpr || new ConcatStringExpr(funcName, '_' , new MethodInvokeExpr('JSON', 'stringify', [iterator]));
+            let cloneChildren = new MethodInvokeExpr('this', 'cloneChildren', [new Expr('children'), keyExpr]);
+            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), cloneChildren]);
+            forStmt = new ForIteratorStmt(iterator, container, [cloneNested, c2, extendsChildren]);
         } else {
             let isTimes = forElement.hasAttribute('times');
             if(isTimes){
-                keyExpr = keyExpr || new ConcatStringExpr(funcName, '_' , new Expr('time'));
+                keyExpr = keyExpr || new Expr('time');
             }
-            let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, keyExpr);
-            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), children]);
+            let cloneChildren = new MethodInvokeExpr('this', 'cloneChildren', [new Expr('children'), keyExpr]);
+            let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'),  cloneChildren]);
             if(isTimes){
-                forStmt = new ForLoopStmt(new Expr('let time=1'), new LtEqExpr(new Expr('time'), new Expr(forElement.getAttribute('times'))), new Expr('time++'), [cloneNested, extendsChildren]); 
+                forStmt = new ForLoopStmt(new Expr('let time=1'), new LtEqExpr(new Expr('time'), new Expr(forElement.getAttribute('times'))), new Expr('time++'), 
+                        [cloneNested, c2, extendsChildren]); 
             } else {
-                forStmt = new ForLoopStmt(new Expr(forElement.getAttribute('init')), new Expr(forElement.getAttribute('cond')), new Expr(forElement.getAttribute('step')), [cloneNested, extendsChildren]);
+                forStmt = new ForLoopStmt(new Expr(forElement.getAttribute('init')), new Expr(forElement.getAttribute('cond')), new Expr(forElement.getAttribute('step')), 
+                        [cloneNested, c2, extendsChildren]);
             }
         }
-        let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(['__nested__'], [resultDecl,  forStmt, new ReturnStmt(new Expr('array'))])));
+        let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(['__nested__', 'prefix'], [resultDecl,  forStmt, new ReturnStmt(new Expr('array'))])));
         renderer.children.push(fun);
     }
 
@@ -621,18 +629,61 @@ Molecule.scanMolecules = async function(starter, manual) {
     if (Molecule.debug) console.info('molecule scan', starter, 'over');
 
     async function createMolecule(target){
-        const moleculeName = target.getAttribute('m');
-        target.removeAttribute('m');
-        target.extends = moleculeName;
-        const className = 'Temp_' + (Molecule.nextTempId ++);
-        const code = await Molecule.compileDefine(target, className); 
-        const fun = new Function(code + ` ;return ${className};`);
-        const clazz = fun();
-        for(let cattr of target.attributes){
-            target.removeAttribute(cattr);
+        if(!createMoleculeWithoutInnerClass(target)){     // 尽量不创建内部类
+            const moleculeName = target.getAttribute('m');
+            target.removeAttribute('m');
+            target.extends = moleculeName;
+            const className = 'Temp_' + (Molecule.nextTempId ++);
+            const code = await Molecule.compileDefine(target, className); 
+            const fun = new Function(code + ` ;return ${className};`);
+            const clazz = fun();
+            for(let cattr of target.attributes){
+                target.removeAttribute(cattr);
+            }
+            target.innerHTML = '';  // remove all children;
+            new clazz(target);
         }
-        target.innerHTML = '';  // remove all children;
-        new clazz(target);
+
+        function createMoleculeWithoutInnerClass(target) {
+            if(target.childElementCount) return false;
+
+            let moleculeName = target.getAttribute('m');
+            var clazz = Molecule.TYPES[moleculeName];
+            if(clazz == null) throw new Error(`molecule class '${moleculeName}' not found`);
+            let props = {};
+            var key = null;
+            for(let cattr of target.attributes){
+                let value = cattr.value;
+                let [propName, attrName, type, isCustomProp, isExpr, isRuntime, isEcho] = Molecule.parseAttributeName(target, cattr.name);
+                if(isExpr || type == 'evt'){
+                    return false;
+                }
+                if(isRuntime) throw ':r(untime) option can only appear within molecule define';
+                if(isEcho) throw ':e(cho) option can only appear within molecule define';
+                var expr = parseAttributeValue(value, type, isExpr, true);
+                if(propName == 'key'){
+                    key = expr;
+                } else {
+                    props[propName] = expr;
+                }
+                if(type == 'evt'){
+                    target.removeAttribute(cattr.name);
+                }
+            }
+            delete props['m'];
+            if(!key){
+                key = 'key_' + (Molecule.nextTempId++);
+            }
+            return new clazz(target, props);
+        }
+    
+        function parseAttributeValue(value, type, isExpr){
+            if(isExpr || type == 'evt'){     // expr
+                return new Molecule.InstanceExpr(new Function('return ' + value));
+            } else {
+                return Molecule.castType(value, type);
+            }
+        }
     }
 }
 

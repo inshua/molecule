@@ -581,6 +581,7 @@ class T3{
 在 React 的 ReactTransitionGroup 的设计里是这么做的：
 
 ```js
+  // https://github.com/reactjs/react-transition-group/blob/v1-stable/src/CSSTransitionGroupChild.js
   componentWillAppear = (done) => {
     if (this.props.appear) {
       this.transition('appear', done, this.props.appearTimeout);
@@ -605,6 +606,11 @@ class T3{
     }
   }
 ```
+
+仔细阅读了它的代码，componentWillAppear 来自于 performAppear，而 performAppear 来自 `componentDidMount`，所以这个 componentWillAppear 是自己实现的。
+willenter 和 willleave 则来自 `componentDidUpdate`，依靠代码比对发现哪些元素移除了。见 https://github.com/reactjs/react-transition-group/blob/v1-stable/src/TransitionGroup.js。
+
+从代码可以发现 react 并不是为 animation 设计的，所以提供的支援很少，这部分代码 (自己比对 getChildMapping) 有点黑客了。
 
 React 这个插件实现为两个 vdom 组件 `<TransitionGroup><CSSTransition>` 并将实际的组件包围在里面。这个设计看起来很有意思，实际上有点错乱，按内容层次来说，组件的动画是组件自身的行为，表达为下面的形式更为可取：
 ```html

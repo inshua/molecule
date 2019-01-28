@@ -66,6 +66,15 @@
                 <li>{{i}}</li>
             </for>
         </ul>
+        
+        <h2>nested</h2>
+        <ul><!-- for 分别生成函数，上下文脱离，故不能用简单变量 -->
+            <for var="this.props.i" from="1" to="9" step="1">
+                <for var="this.props.j" from="this.props.i" to="9">
+                    <li>{{this.props.i}} * {{this.props.j}} = {{this.props.i * this.props.j}}</li>
+                </for>
+            </for>
+        </ul>
     </div>
 
     <div id="test3">

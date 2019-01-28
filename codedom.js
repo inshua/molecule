@@ -440,7 +440,9 @@ class ForIteratorStmt extends Statement{
     }
 
     toCode(indent){
-        return `${this.indent(indent)}for(const ${this.iterator.toCode(indent)} of ${this.container.toCode(indent)}){\n${this.childrenCode(indent)}${this.indent(indent)}}`
+        const it = this.iterator.toCode(indent);
+
+        return `${this.indent(indent)}for(${it.indexOf('.') == -1 ? 'const ' : ''}${this.iterator.toCode(indent)} of ${this.container.toCode(indent)}){\n${this.childrenCode(indent)}${this.indent(indent)}}`
     }
 }
 
