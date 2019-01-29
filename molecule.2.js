@@ -490,7 +490,6 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
                 container = new Expr(forElement.getAttribute('over'));
             }
         }
-        let cloneNested = new VarDeclStmt('nested', new MethodInvokeExpr('this', 'cloneChildren', [new Expr('__nested__'), funcName]));   // var nested = this.cloneChildren(__nested__)
         let children = compileChildren(Array.from(forElement.childNodes), renderer, embedFunctionId, funcName);
         let c2 = new ConstDeclStmt('children', children);
         if(iterator){
@@ -498,7 +497,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             // keyExpr = keyExpr || new ConcatStringExpr(funcName, '_' , new MethodInvokeExpr('JSON', 'stringify', [iterator]));
             let cloneChildren = new MethodInvokeExpr('this', 'cloneChildren', [new Expr('children'), keyExpr]);
             let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'), cloneChildren]);
-            forStmt = new ForIteratorStmt(iterator, container, [cloneNested, c2, extendsChildren]);
+            forStmt = new ForIteratorStmt(iterator, container, [c2, extendsChildren]);
         } else {
             let isTimes = forElement.hasAttribute('times');
             if(isTimes){
@@ -508,13 +507,13 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             let extendsChildren = new MethodInvokeStmt('Array.prototype.push', 'apply', [new Expr('array'),  cloneChildren]);
             if(isTimes){
                 forStmt = new ForLoopStmt(new Expr('let time=1'), new LtEqExpr(new Expr('time'), new Expr(forElement.getAttribute('times'))), new Expr('time++'), 
-                        [cloneNested, c2, extendsChildren]); 
+                        [c2, extendsChildren]); 
             } else {
                 forStmt = new ForLoopStmt(new Expr(forElement.getAttribute('init')), new Expr(forElement.getAttribute('cond')), new Expr(forElement.getAttribute('step')), 
-                        [cloneNested, c2, extendsChildren]);
+                        [c2, extendsChildren]);
             }
         }
-        let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(['__nested__', 'prefix'], [resultDecl,  forStmt, new ReturnStmt(new Expr('array'))])));
+        let fun = new ConstDeclStmt(funcName, new BracketExpr(new LambdaExpr(['nested', 'prefix'], [resultDecl,  forStmt, new ReturnStmt(new Expr('array'))])));
         renderer.children.push(fun);
     }
 

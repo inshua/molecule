@@ -317,7 +317,6 @@ class Molecule {
     }
 
     dispatchEvent(eventType, then, eventInitDict){
-        console.log(this, 'dispatch event', eventType);
         if(then == null){
             this.element.dispatchEvent(new Event(eventType, eventInitDict));
         } else {
