@@ -15,20 +15,23 @@ class Molecule {
         this.element = element;
         element.molecule = this;
 
-        this.props = {};
-        props = this.initProps(props || {});
-
         this.state = Object.assign(this.getInitialState(), state);
-
+        
         this.children = {};             // key - child      
         this.childrenKeys = [];         // 
         
         this.attributesWillEcho = [];       // 渲染时将需要回显的HTML属性存于此处，渲染最后一步执行回显
+        
+        this.willInit(()=>{
+            this.props = {};
+            props = this.initProps(props || {});
 
-        // first time render, echo props
-        // for event handler this is a bad call, will bind and unbind once
-        this.setProps(props, true);
-        this.render();
+            // first time render, echo props
+            // for event handler this is a bad call, will bind and unbind once
+            this.setProps(props, true);
+            this.render();
+            this.inited();
+        });
     }
 
     initProps(instanceProps){
@@ -70,9 +73,12 @@ class Molecule {
     }
 
     render(){
-        this.renderRuntimeProps();
-        this.assignChildren(this.createChildren());
-        this.echoAttributes();
+        this.willRender(()=>{
+            this.renderRuntimeProps();
+            this.assignChildren(this.createChildren());
+            this.echoAttributes();
+            this.rendered();
+        });
     }
 
     echoAttributes(){
@@ -189,6 +195,13 @@ class Molecule {
     }
 
     assignChildren(children){
+        this.willFill(()=> {
+            this.assignChildrenInner(children);
+            this.filled();
+        });
+    }
+
+    assignChildrenInner(children){
         if(children == null || children.length == 0){
             if(this.childrenKeys.length) this.removeAllChildren()
         } else {
@@ -222,16 +235,20 @@ class Molecule {
     insertAt(index, element){
         var old = this.childrenKeys[index];
         if(old){
-            old.molecule.willEnter();
             old = this.children[old];
-            old.before(element);
-            this.childrenKeys.splice(index, 0, element.key);
-            this.children[element.key] = element;
+            element.molecule.willEnter(old, ()=>{
+                old.before(element);
+                this.childrenKeys.splice(index, 0, element.key);
+                this.children[element.key] = element;
+                element.molecule.entered();
+            });
         } else {
-            element.molecule.willEnter();
-            this.element.appendChild(element);
-            this.childrenKeys.push(element.key);
-            this.children[element.key] = element;
+            element.molecule.willEnter(null, ()=>{
+                this.element.appendChild(element);
+                this.childrenKeys.push(element.key);
+                this.children[element.key] = element;
+                element.molecule.entered();
+            });
         }
     }
 
@@ -239,8 +256,10 @@ class Molecule {
         for(let k of this.childrenKeys){
             let el = this.children[k];
             el.molecule.willLeave(()=>{
-                el.molecule.dispose();
                 el.remove();
+                el.molecule.leaved(()=>{
+                    el.molecule.dispose();
+                });
             })
         }
         this.children = {};
@@ -256,26 +275,23 @@ class Molecule {
             this.childrenKeys.splice(this.childrenKeys.indexOf(childKey),1);
         }
         child.molecule.willLeave(()=>{
-            child.molecule.dispose();
             child.remove();
-            delete this.children[childKey]
+            child.molecule.leaved(()=>{
+                child.molecule.dispose();
+                delete this.children[childKey]
+            });
         });
     }
 
     swap(childKey1, childKey2){
         let index1 = this.childrenKeys.indexOf(childKey1), index2 = this.childrenKeys.indexOf(childKey2);
         const c1 = this.children[childKey1], c2 = this.children[childKey2];
-        c1.molecule.willLeave(()=> c2.willLeave(() => c1.willEnter(()=> c2.willEnter(
-            ()=>{
-                this.dispatchEvent('willswap', ()=>{
-                    this.swapNodes(c1, c2);
-                    let t = this.childrenKeys[index1];
-                    this.childrenKeys[index1] = this.childrenKeys[index2];
-                    this.childrenKeys[index2] = t;
-                }, {side1: c1, side2: c2})
-            }
-        ))))
-        
+        c1.molecule.willSwap(c2, ()=>{
+            this.swapNodes(c1, c2);
+            let t = this.childrenKeys[index1];
+            this.childrenKeys[index1] = this.childrenKeys[index2];
+            this.childrenKeys[index2] = t;
+        });
     }
 
     //https://stackoverflow.com/questions/10716986/swap-2-html-elements-and-preserve-event-listeners-on-them/10717422#10717422
@@ -301,35 +317,68 @@ class Molecule {
     }
 
     dispatchEvent(eventType, then, eventInitDict){
-        var event = null;
-        event = new CustomEvent(eventType, {detail: Object.assign({
-            molecule : this,
-            // bubbles : true,
-            tasks: [],  // promises
-            addTask: function(task){ this.tasks.push(task); return this;},
-        }, eventInitDict)});
-        if(this.element.dispatchEvent(event)){
-            if(event.detail.tasks){
-                Promise.all(event.detail.tasks).then(()=> then && then.call(this, event));
-            } else {
-                then && then.call(this, event);
-            }
+        console.log(this, 'dispatch event', eventType);
+        if(then == null){
+            this.element.dispatchEvent(new Event(eventType, eventInitDict));
         } else {
-            then && then.call(this, event);
+            let event = new CustomEvent(eventType, {detail: Object.assign({
+                molecule : this,
+                // bubbles : true,
+                tasks: null,  // [promises]
+                addTask: function(task){ 
+                    if(this.tasks == null) this.tasks = []; 
+                    this.tasks.push(task); 
+                    return this;
+                },
+            }, eventInitDict)});
+            if(this.element.dispatchEvent(event)){
+                if(event.detail && event.detail.tasks){
+                    Promise.all(event.detail.tasks).then(()=> then.call(this, event));
+                } else {
+                    then.call(this, event);
+                }
+            } else {
+                then.call(this, event);
+            }
         }
     }
 
-    willInit(then){
-        this.dispatchEvent('willinit', then);
-    }
+    /*
+    * willinit - 在初始完毕触发(子元素仍未装载，this.element 可以得到)
+    * willrender - 在即将渲染时触发
+    * willfill - 在子元素将装载时触发
+    * filled - 在子元素装载后触发
+    * rendered - 渲染完毕触发
+    * inited - 在初始完毕触发(第一次初始化并已渲染完)
+    * willenter - 在将要加入 DOM 树时触发 后续事件为 TODO
+    * entered - 加入DOM树后触发
+    * willswap - 与其它节点交换触发
+    * willleave - 在将要删除时触发
+    * leaved - 删除后发生
+     */
+    willInit(then){ this.dispatchEvent('willinit', then); }
+    
+    willRender(then) { this.dispatchEvent('willrender', then); }
 
-    willEnter(then){
-        this.dispatchEvent('willenter', then);
-    }
+    willFill(then){ this.dispatchEvent('willfill', then);}
 
-    willLeave(then){
-        this.dispatchEvent('willleave', then);
-    }
+    filled(then){ this.dispatchEvent('filled', then); }
+
+    rendered(then){ this.dispatchEvent('rendered', then); }
+
+    inited(then){ this.dispatchEvent('inited', then); }
+    
+    willEnter(old, then){ this.dispatchEvent('willenter', then, {old: old});}
+
+    entered(then){this.dispatchEvent('entered', then); }
+
+    willSwap(other, then){ this.dispatchEvent('swap', then, {other: other}); }
+    
+    willLeave(then){ this.dispatchEvent('willleave', then); }
+
+    leaved(then){ this.dispatchEvent('leaved', then); }
+
+
 
     cloneChildren(expr, baseKey){
         if(baseKey == null) debugger;

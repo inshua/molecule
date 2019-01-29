@@ -634,8 +634,23 @@ molecule 按生命周期触发如下事件：
 * filled - 在子元素装载后触发
 * rendered - 渲染完毕触发
 * inited - 在初始完毕触发(第一次初始化并已渲染完)
-* willleave - 在将要删除时触发
 * willenter - 在将要加入 DOM 树时触发 后续事件为 TODO
+* entered - 加入DOM树后触发
+* willswap - 与其它节点交换触发
+* willleave - 在将要删除时触发
 * leaved - 删除后发生
 
 也可在派生类覆盖同名函数实现定制。
+
+## 交换动画
+
+https://github.com/FormidableLabs/react-shuffle
+https://github.com/joshwcomeau/react-flip-move/tree/gh-pages
+http://joshwcomeau.github.io/react-flip-move/examples/#/laboratory?_k=o035x8
+
+核心原理：
+https://aerotwist.com/blog/flip-your-animations/#the-general-approach
+
+jQuery 的：
+https://vestride.github.io/Shuffle/
+
