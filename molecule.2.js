@@ -261,7 +261,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
     let c = new ClassDecl(fullname, prototypeElement.extends || 'Molecule')
     unit.children.push(c);
 
-    let renderer = new MethodDecl('createChildren', ['nested']);
+    let renderer = new MethodDecl('createChildren', ['$c', 'nested']);
     c.children.push(renderer);
     //renderer.children.push(new LineStmt('console.info(this.constructor.name, nested)'));
     //renderer.children.push(new LineStmt('debugger'));
@@ -278,7 +278,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         defaultProps[propName] = new DefaultPropExpr(propName, type, isCustomProp, isExpr, isRuntime, isEcho, expr);
     }
     if(!soloTextNode(prototypeElement, defaultProps, false)){
-        let createChildrenExpr = new MethodInvokeExpr('super', 'createChildren', compileChildren(Array.from(prototypeElement.childNodes), renderer));
+        let createChildrenExpr = new MethodInvokeExpr('super', 'createChildren', ['$c', compileChildren(Array.from(prototypeElement.childNodes))], renderer);
         renderer.children.push(new ReturnStmt(createChildrenExpr));
     } else {
         renderer.children.push(new ReturnStmt(new MethodInvokeExpr('super', 'createChildren', [])));
@@ -293,8 +293,8 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
         if(type == 'evt'){
             if(isExpr){
                 if(!isInstancing){
-                    let fun = new FunctionDeclExpr.fromStatements('', [new ReturnStmt(new Expr(value))]);
-                    // new Prop(function(){return <<code>>});
+                    let fun = new FunctionDeclExpr('', [], [new ReturnStmt(new Expr(value))]);
+                    // new Prop(function(event, target, $c){return <<code>>});
                     return new NewInstanceExpr('Molecule.EventHandlerProvider', [fun]);
                 } else {
                     // this.element.click = this.wrapHandler(<<code>>)
@@ -303,12 +303,11 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             } else {
                 if(!isInstancing){
                     // new Prop(function(){<<code>>}), in Prop.getValue(_this) bind to the instance
-                    let fun = FunctionDeclExpr.fromStatements('', [new LineStmt(value)]);
+                    let fun = new FunctionDeclExpr('', ['event', 'target','$c'], [new LineStmt(value)]);
                     return fun;
                 } else {
-                    // button.click = this.wrapHandler(function(event, target){<<code>>})    // `this` means molecule of renderDOM, in the <<code>> `target` means element
-                    let fun = new FunctionDeclExpr('', ['event', 'target']);
-                    fun.children = [new LineStmt(value)];
+                    // button.click = this.wrapHandler(function(event, target, $c){<<code>>})    // `this` means molecule of renderDOM, in the <<code>> `target` means element
+                    let fun = new FunctionDeclExpr('', ['event', 'target', '$c'], [new LineStmt(value)]);
                     return new MethodInvokeExpr('this', 'wrapHandler', [fun]);
                 }
             }
@@ -317,7 +316,7 @@ Molecule.compileDefine = async function(prototypeElement, fullname){
             if(isInstancing)
                 return new Expr(value);
             else
-                return FunctionDeclExpr.fromStatements('',[new ReturnStmt(new Expr(value))])
+                return new FunctionDeclExpr('', ['$c'], [new ReturnStmt(new Expr(value))])
         } else {
             return new LiteralExpr(Molecule.castType(value, type), type);
         }
@@ -677,32 +676,28 @@ Molecule.scanMolecules = async function(starter, manual) {
         }
     
         function parseAttributeValue(value, type, isExpr){
-            if(isExpr || type == 'evt'){     // expr
-                return new Molecule.InstanceExpr(new Function('return ' + value));
-            } else {
-                switch(type){
-                case 's':
-                    return value;
-                case 'n':
-                    return value == ''? null : value * 1;
-                case 'b':
-                    value = value.toLowerCase();
-                    if(value == 'true') return true;
-                    if(value == 'false') return false;
-                    if(value == 'y' || value == 'yes') return true;
-                    if(value == 'n' || value == 'no') return false;
-                    return true;
-                case 'o':
-                    return JSON.parse(value);
-                case 'd':
-                    var n = Number.parseInt(value);
-                    if(!isNaN(n))
-                        return new Date(value);
-                    else
-                        return Date.parse(value);
-                }
+            switch(type){
+            case 's':
                 return value;
+            case 'n':
+                return value == ''? null : value * 1;
+            case 'b':
+                value = value.toLowerCase();
+                if(value == 'true') return true;
+                if(value == 'false') return false;
+                if(value == 'y' || value == 'yes') return true;
+                if(value == 'n' || value == 'no') return false;
+                return true;
+            case 'o':
+                return JSON.parse(value);
+            case 'd':
+                var n = Number.parseInt(value);
+                if(!isNaN(n))
+                    return new Date(value);
+                else
+                    return Date.parse(value);
             }
+            return value;
         }
     }
 }

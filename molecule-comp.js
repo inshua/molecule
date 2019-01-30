@@ -21,6 +21,8 @@ class Molecule {
         this.childrenKeys = [];         // 
         
         this.attributesWillEcho = [];       // 渲染时将需要回显的HTML属性存于此处，渲染最后一步执行回显
+
+        this.context = {};      // 供渲染时传递参数
         
         this.willInit(()=>{
             this.props = {};
@@ -61,7 +63,7 @@ class Molecule {
         return {};
     }
 
-    createChildren(nested){    // 框架从 DOM 生成 createChildren 函数
+    createChildren($c, nested){    // 框架从 DOM 生成 createChildren 函数
         return nested;
     }
 
@@ -75,7 +77,8 @@ class Molecule {
     render(){
         this.willRender(()=>{
             this.renderRuntimeProps();
-            this.assignChildren(this.createChildren());
+            const children = this.createChildren(this.context);
+            this.assignChildren(children);
             this.echoAttributes();
             this.rendered();
         });
@@ -103,9 +106,6 @@ class Molecule {
     }
 
     prop(propName, value, force){
-        if(value instanceof Molecule.InstanceExpr){
-            value = value.getValue(this);
-        }
         let oldValue = this.props[propName];
         if(oldValue === value){
             if(!force) return;
@@ -442,7 +442,7 @@ class Molecule {
     wrapHandler(handler){
         let m = this;
         return function(event){
-            handler.call(m, event, this);
+            handler.call(m, event, event.target, m.context);        // event, target, $c
         }
     }
 
@@ -535,17 +535,7 @@ Molecule.EventHandlerProvider = class{
         this.handler = handler;
     }
     getHandler(instance){
-        let h = this.handler.call(instance);
-        return h && h.bind(instance);
-    }
-}
-
-Molecule.InstanceExpr = class{
-    constructor(fun){
-        this.fun = fun;
-    }
-    getValue(instance){
-        return this.fun.bind(instance);
+        return this.handler.call(instance);
     }
 }
 
@@ -565,9 +555,9 @@ class Prop{
     getValue(_this){
         if(this.type == 'evt'){     // this.expression will be a function to return function, function(){return this.handleClick} etc
             if(this.expression instanceof Molecule.EventHandlerProvider)
-                return this.expression.getHandler(_this)
+                return _this.wrapHandler(this.expression.getHandler(_this));
             else
-                return this.expression.bind(_this);
+                return _this.wrapHandler(this.expression); // this.expression.bind(_this);
         } else {
             let r = this.expression instanceof Function ? this.expression.call(_this) : this.expression;        //TODO 这里用 this 未必恰当，可能需要用 this.container，子元素如何获得父元素的属性呢
             return Molecule.castType(r, this.type);

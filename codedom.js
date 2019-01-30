@@ -142,10 +142,11 @@ FunctionDeclStmt.fromStatements = function(name, statements){
 }
 
 class FunctionDeclExpr extends Expr{
-    constructor(name, args){
+    constructor(name, args, statements){
         super()
         this.name = name || '';
         this.args = args || '';
+        this.children = statements || [];
     }
 
     toCode(indent){
@@ -160,10 +161,11 @@ FunctionDeclExpr.fromStatements = function(name, statements){
 }
 
 class MethodDecl extends Statement{
-    constructor(name, args){
+    constructor(name, args, statements){
         super()
         this.name = name || '';
         this.args = args || '';
+        this.children = statements || [];
     }
 
     toCode(indent){
