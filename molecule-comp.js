@@ -559,7 +559,7 @@ class Prop{
             else
                 return _this.wrapHandler(this.expression); // this.expression.bind(_this);
         } else {
-            let r = this.expression instanceof Function ? this.expression.call(_this) : this.expression;        //TODO 这里用 this 未必恰当，可能需要用 this.container，子元素如何获得父元素的属性呢
+            let r = this.expression instanceof Function ? this.expression.call(_this, _this.context) : this.expression;        //TODO 这里用 this 未必恰当，可能需要用 this.container，子元素如何获得父元素的属性呢
             return Molecule.castType(r, this.type);
         }
     }

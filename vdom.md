@@ -654,3 +654,46 @@ https://aerotwist.com/blog/flip-your-animations/#the-general-approach
 jQuery 的：
 https://vestride.github.io/Shuffle/
 
+##代码组织
+
+react 将 html 包裹于 js 中，其代码组织利用了 js 的代码组织方式。呈现出 module - class 这样的层次结构，另外，文件夹有时也能帮点忙。
+
+在 molecule 中，我通过将 script 标签扩充 `m-class` 可以得到其它方法，但还是缺少了 `module` 这样的层次。
+
+也许可以通过 `<module>` 这样的标签来形成单元解决。即
+
+```html
+    <template>
+        <module name="mui">
+            <script>
+                const style = ...
+            </script>
+            <div m-def="">
+
+            </div>
+        </module>
+    </template>
+```
+这样做是否有效颦之忧，需要斟酌。
+
+在原来 molecule 的设计中，有两种 `script`，一种是 `constructor`，一种是普通 script。后者会提取出来执行一次（作为全局执行）。
+
+网上也有一些相关讨论：https://github.com/w3c/webcomponents/issues/645
+
+应该说这么做是可行的。
+
+另一种做法，`索性将 html 文件视为一个 module`。 这样最终与 js 近乎完全对等。
+
+后面这种做法好点。从前 js 也是一个一个的文件，后来也是这么直接变为模块的。
+
+如何引用模块呢？
+
+按 `molecule src="xxx"` 的老办法也是可行的，将其转为 `import` 即可。
+
+如需在 js 里引用 molecule 模块，可以提供一个这样的调用：
+
+```js
+    let m = await Molecule.load('xxx.html')
+```
+
+总的来说应趋向于模块化为主导。
