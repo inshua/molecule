@@ -697,3 +697,28 @@ react 将 html 包裹于 js 中，其代码组织利用了 js 的代码组织方
 ```
 
 总的来说应趋向于模块化为主导。
+
+目前 browser 对 import 支持还很弱。
+
+1. `import 'lib/a'`   不支持。不支持定位 `node_modules` 这样的目录，必须用 '/' 或 '.' 开始的绝对或相对路径。
+1. `import './a'`  不支持，必须提供后缀。也没有 `package.json`，所以只能提供 `a.js`。
+1. `import wrap('lib/a.js')`  不支持，必须提供 `literal string`，不能用变量常量，不能用函数
+1. `const {Molecule } = await myimport('lib/a.js')` 不支持，`await` 必须放在 `async` 内包装起来。
+
+由于这些局限，最终想到的办法是：
+
+```html
+<html>
+    <head>
+        <meta name="import_context" value="">
+        <meta name="import_modules" value="node_modules">
+    </head>
+    <template>
+        <import from="" names="">        
+        <div m-def=></div>
+```
+当生成代码时，根据所给 <meta> 和 <import> 标记生成 `import "literal string"`。
+
+这样 import 语句都是从 tag 生成的，可以避免手写 import 无法解决的麻烦。
+
+未来当 import 语句得到改善后，生成的代码也可以做相应调整。
