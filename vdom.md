@@ -710,8 +710,8 @@ react 将 html 包裹于 js 中，其代码组织利用了 js 的代码组织方
 ```html
 <html>
     <head>
-        <meta name="import_context" value="">
-        <meta name="import_modules" value="node_modules">
+        <meta name="import_context" value="">               <!-- 决定 from '/a/b/c.js' 的路径 -->
+        <meta name="modules_path" value="node_modules">     <!-- 决定 from 'a/b.js' 的路径，modules_path 包含 import_context -->
     </head>
     <template>
         <import from="" names="">        
@@ -722,3 +722,33 @@ react 将 html 包裹于 js 中，其代码组织利用了 js 的代码组织方
 这样 import 语句都是从 tag 生成的，可以避免手写 import 无法解决的麻烦。
 
 未来当 import 语句得到改善后，生成的代码也可以做相应调整。
+
+这种思路是将整个 html 转为一个 js，然而客户端生成 js 几个路都不怎么行。
+
+1. 生成 `<script type=module>`、设置 innerHTML 并 appendChild，这个办法生成的 module 没有名字，不支持引用，只能集合在页面里用一用而已。
+1. 生成 `<script>` 则不支持 import，不支持 import 后面使用很被动
+1. 我试验了一种有趣的办法 `<script type=module src="URL.createObjectURL(blob code)">`，这个办法有用，但是脚本是临时性的，所以不能引用名称。这样就无法在 `Button.js` 里通过 `import 'ButtonBase.js'` 来导入另一个文件。
+
+因此 Molecule 的管理只能通过另外的机制来实现，也就是传统的 `<molecule src=>` 来引用其它组件包。这些组件在地位上是扁平的。
+
+最终方案：
+
+1. `import from another file`： 如为引用组件 `<molecule src=>`，如引用js module, `<import from="">`，如引用普通 js， `<script src=>`
+1. `extends module.Class`，`<tag m-def=A m=super>`： 生成 `class Button extends Molecule.Types['ButtonBase']`。
+1. 模块内的 token，不会污染其它模块。既然已经将 html 生成 module，其脚本（也就是 <script> 方式给出的）自然可以归并为模块内的 token。
+
+未来最好能生成恰好的 js。
+
+一个典型的这种 HTML 将生成:
+
+```js
+import xxx from xxx
+
+class Button extends MoleculeTypes['mui.ButtonBase']{       // fullname 用 mui.Button，内部用 mui$Button，名称用 Button，不对外 export
+
+}
+
+MoleculeTypes['mui.Button'] = Button;
+```
+
+
