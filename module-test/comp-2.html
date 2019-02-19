@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Test Code Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="import_context" value="../">
+    <meta name="node_modules" value="node_modules/">
+</head>
+<body>
+    <template>
+        <script>
+            function addTextToBody(text){
+                document.body.append(document.createTextNode(text));
+            }
+        </script>
+        <div m-def=mui.Test>
+            <h1>HELLO WORLD</h1>
+            <script m-class>
+                willInit(then){
+                    super.willInit(then);
+                    addTextToBody('will init');
+                }
+            </script>
+        </div>
+    </template>    
+</body>
+</html>

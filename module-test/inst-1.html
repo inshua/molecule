@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Instance Page</title>
+    <script src="../jquery-3.2.1.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jsondiffpatch/dist/jsondiffpatch.umd.min.js"></script>
+    <!-- <molecule src="comp-1.html"></molecule> -->
+</head>
+<body>
+    
+</body>
+<script type=module>
+    import {loadHtml} from '/node_modules/molecule/molecule.mjs';
+    (async function (){
+        try{
+            await loadHtml('./comp-1.html')
+        } catch(e){
+            console.error(e);
+        }
+    })();
+</script>
+</html>
