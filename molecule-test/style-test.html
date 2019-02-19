@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Timer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../node_modules/molecule/molecule.mjs" type="module"></script>
+    <meta name="import_context" value="../">
+    <meta name="node_modules" value="node_modules/">
+</head>
+<body>
+    <template>
+        <div m-def="Test" class="test">
+            <style>
+                .test{
+                    color: red;
+                    position: fixed;
+                    left: 50%;
+                    vertical-align: middle;
+                    height: ${document.documentElement.clientHeight}px;
+                    line-height: ${document.documentElement.clientHeight}px;
+                }
+            </style>
+
+            ${nested}
+        </div>
+    </template>
+
+    <div m="Test">
+        <div>Hello World</div>
+    </div>
+</body>
+</html>
