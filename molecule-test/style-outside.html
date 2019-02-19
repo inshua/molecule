@@ -11,10 +11,10 @@
 </head>
 <body>
     <template>
-        <div m-def="Test" class="test">
-            <style>
-                .test{
-                    color: red;
+        <div m-def="Test" class:x:r="$c.theme.name + '-test'">
+            <style outside:b="true" key:x="$c.theme.name+'-test'">
+                .${$c.theme.name}-test{
+                    color: ${$c.theme.color};
                     position: fixed;
                     left: 50%;
                     vertical-align: middle;
@@ -29,6 +29,16 @@
 
     <div m="Test">
         <div>Hello World</div>
+        <script m-class>
+            willInit(then){
+                this.context.theme = {color : 'red', name: 'red-theme'};
+                super.willInit(then);
+            }
+            willRender(then){
+                this.context.theme = {color : 'blue', name: 'blue-theme'};
+                super.willRender(then);
+            }
+        </script>
     </div>
 </body>
 </html>
