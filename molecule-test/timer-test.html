@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Timer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../node_modules/molecule/molecule.mjs" type="module"></script>
+    <meta name="import_context" value="../">
+    <meta name="node_modules" value="node_modules/">
+</head>
+<body>
+    <template>
+        <div m-def="Timer">
+            <h1>${new Date().toISOString()}</h1>
+            <script m-class>
+                inited(then){
+                    super.inited(then);
+                    setInterval(()=>this.render(), 50);
+                }
+            </script>
+        </div>
+    </template>
+
+    <div m="Timer">
+
+    </div>
+</body>
+</html>
