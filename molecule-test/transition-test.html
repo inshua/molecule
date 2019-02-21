@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Transition Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="../node_modules/molecule/molecule.mjs" type="module"></script>
+    <import src="../node_modules/transition/index.js" tokens="{Transition}"></import>
+    <style>
+        @keyframes my-animation {        
+            from {
+                opacity : 0;
+                left : -100px;
+            }
+            to {
+                opacity : 1;
+                left : 0;
+            }      
+        }
+
+        .stage-entered {
+            position: relative;
+            animation: my-animation 0.5s ease-in;
+        }
+        .stage-willleave {
+            transition: 0.5s;
+            transition-timing-function: ease-out;
+            transform: translateY(0);
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <template>
+        <div m-def=Test>
+            <button onclick:x="this.addItem">+</button>
+            <ul>
+                <for it="item" over="this.props.items">
+                    <li onwillinit="target.molecule.install(new Transition('stage', 500))">
+                        ${item.name} &nbsp;
+                        <a href="###" onclick="this.prop('items', this.props.items.filter(i => i != item)).render()">X</a>
+                    </li>
+                </for>
+            </ul>
+            <script m-class>
+                addItem(){
+                    this.prop('items', [...this.props.items, {name: window.prompt('input yourname')}]).render();
+                }
+            </script>
+        </div>
+    </template>
+
+    <div m=Test items:o='[{"name":"Jack"}, {"name":"Tony"}]'>
+    </div>
+
+</body>
+</html>
