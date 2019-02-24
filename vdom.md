@@ -752,3 +752,118 @@ MoleculeTypes['mui.Button'] = Button;
 ```
 
 
+##继承问题
+
+JS 的继承并不支持真正的 private member。
+
+什么是真正的 private member？
+
+```java
+public class A {
+
+	private String name;
+	
+	public String getName(){
+		return this.name;
+	}
+	
+	A(){
+		this.name = "A";
+	}
+}
+```
+
+```java
+public class B extends A {
+
+	private String name;
+	
+	public String getName(){
+		return this.name;
+	}
+
+	public void hello(){
+		System.out.println(this.getName());
+		System.out.println(super.getName());
+	}
+	
+	B(){
+		this.name = "B";
+	}
+
+}
+```
+
+```java
+public class Main {
+	public static void main(String[] args) {
+		new B().hello();
+	}
+}
+```
+
+在上面的代码里， B.hello 将依次输出 B 和 A，B 并没有覆盖 A 的成员。getName 方法可以做到子类一套父类一套，分别独立。
+
+而在 js 里，虽然也支持继承，但是 js 的继承并没有真正的不覆盖，getName 虽然可以调用 super 或不调用，但方法始终是覆盖的。
+方法或者可以解决，因为 proto 是可以区分的，但是目前 arguments.callee 已经被屏蔽，不能获得当前的 prototype 是 A 还是 B。
+状态却无法解决，因为 proto 里是没有私有成员一说。
+当然，如果确实能从 argument.callee 区分出当前处于哪个 proto，也可以通过其它手段实现不同的入口选择不同的状态。
+然而所有的路都被堵死了。
+
+在 molecule 中为何需要继承呢？
+
+还是在 ButtonBase 和 Button 的经典问题。
+
+在 material-ui 里有 ButtonBase 和 Button 两个组件，这两个组件分别渲染同一个按钮的一些方面。在 react 里是通过一个嵌套盒子来实现的：
+
+```
+Button.render  -> output <ButtonBase props....>
+ButtonBase.render -> output <html tag props>
+```
+
+```js
+// buttonbase
+      <ComponentProp
+        className={className}
+        onBlur={this.handleBlur}
+        onFocus={this.handleFocus}
+        onMouseDown={this.handleMouseDown}
+        onMouseLeave={this.handleMouseLeave}
+        ref={buttonRef}
+        tabIndex={disabled ? '-1' : tabIndex}
+        {...buttonProps}
+        {...other}
+      >
+        {children}
+        {!disableRipple && !disabled ? (
+          <NoSsr>
+            {/* TouchRipple is only needed client side, x2 boost on the server. */}
+            <TouchRipple innerRef={this.onRippleRef} center={centerRipple} {...TouchRippleProps} />
+          </NoSsr>
+        ) : null}
+      </ComponentProp>
+```
+```js
+// button
+    <ButtonBase
+      className={className}
+      disabled={disabled}
+      focusRipple={!disableFocusRipple}
+      focusVisibleClassName={clsx(classes.focusVisible, focusVisibleClassName)}
+      {...other}
+    >
+      <span className={classes.label}>{children}</span>
+    </ButtonBase>
+```
+这样按盒子的规则，Button先render出一个 ButtonBase,ButtonBase 将 Button 提供的 props 进一步 render 到 ComponentProp 上。
+
+这个过程如按继承理解，可以认为先是 subclass 给出一个输出，之后 super class 继续加工这份输出。
+
+如 js 确实支持带有私有成员的真正继承，该过程可以灵活控制，先输出自己的再输出 super 的或者反之，都可。然而由于不支持真正私有成员，super 的方法总是用 subclass 的属性，这样导致不能先 sub 后 super。
+
+该问题最后的解决办法是用 vb 的老办法，在 Button 里放一个 ButtonBase，由 Button 控制何时调用 ButtonBase 的相关函数。
+
+这也许是唯一可行的办法吧。
+
+幸而 Button 和 ButtonBase 并没有需要复用的 method 和 property，都是输出一些 class 和挂载事件处理，因此该方法确实可行。
+
