@@ -867,3 +867,23 @@ ButtonBase.render -> output <html tag props>
 
 幸而 Button 和 ButtonBase 并没有需要复用的 method 和 property，都是输出一些 class 和挂载事件处理，因此该方法确实可行。
 
+## 递归属性的问题
+
+在 material-ui 里，经常出现这一段逻辑
+```js
+    const { className, ...other } = this.props;
+
+    return <Comp className={classNames(classes.root, className)} ...other></Comp>
+```
+这里先将现有的（instance 的） className 取出，之后输出到待渲染的对象。
+
+这个过程中，“我”和“渲染输出”是两个对象。
+
+而在 molecule 实现里，“我” 和 “渲染输出” 是一个对象，这样导致每次渲染，都会发生 className + classes.root 的操作，导致 className 不断增长。
+
+如何解决这个问题呢？
+
+1. 提供属性名时 className 叫别的名字例如 myclass，这样输出属性和输入属性名字不同，就不会发生递归。
+1. 记忆初始化的属性为 this.instanceProps，提取 instanceProps 中的属性值。
+
+另外，other 这种形式在 molecule 里是没有意义的，因为输入对象和输出对象相同，属性本来就全部给出了。
